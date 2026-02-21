@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { UserDetailContext } from '@/context/userDetailContext';
+import Header from './_components/Header';
 
 function provider({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
@@ -20,7 +21,10 @@ function provider({ children }: { children: React.ReactNode }) {
   return (
     <div>
       <UserDetailContext.Provider value={{ userDetail, setUserDetail }}>
-        {children}
+        <Header />
+        <div className='max-w-7xl mx-auto'>
+          {children}
+        </div>
       </UserDetailContext.Provider>
     </div>
   )
