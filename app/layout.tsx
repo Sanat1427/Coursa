@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ClerkProvider } from '@clerk/nextjs'
+import Provider from "./provider";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -12,6 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    <ClerkProvider>
     <html lang="en">
       <head>
         <style>
@@ -32,8 +35,11 @@ export default function RootLayout({
         </style>
       </head>
       <body className="lato-regular antialiased">
+        <Provider>
         {children}
+        </Provider>
       </body>
     </html>
+    </ClerkProvider>
   );
 }
