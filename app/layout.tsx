@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ClerkProvider } from '@clerk/nextjs'
 import Provider from "./provider";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -37,6 +38,7 @@ export default function RootLayout({
       <body className="lato-regular antialiased">
         <Provider>
         {children}
+        <Toaster position="top-center" richColors/>
         </Provider>
       </body>
     </html>

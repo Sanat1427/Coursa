@@ -13,9 +13,9 @@ function Header() {
                 <h2 className='text-3xl font-bold'>Coursa</h2>
             </div>
             <ul className='flex gap-8 items-center'>
-                <li className='text-lg hover:primary font-medium cursor-pointer'>Home</li>
+                <li className='text-lg hover:text-primary font-medium cursor-pointer'>Home</li>
 
-                <li className='text-lg hover:primary font-medium cursor-pointer'>Pricing</li>
+                <li className='text-lg hover:text-primary font-medium cursor-pointer'>Pricing</li>
 
             </ul>
             {user ?
