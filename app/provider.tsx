@@ -14,9 +14,12 @@ function provider({ children }: { children: React.ReactNode }) {
     user && createNewUser();
   }, [user])
   const createNewUser = async () => {
-    const result = await axios.post('/api/user');
-    console.log(result.data);
-    setUserDetail(result?.data);
+    try {
+      const result = await axios.post('/api/user');
+      setUserDetail(result?.data);
+    } catch (e) {
+      console.error("Failed to create/fetch user", e);
+    }
   }
   return (
     <div>
