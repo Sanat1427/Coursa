@@ -73,14 +73,14 @@ function Hero() {
             onChange={(e) => setUserInput(e.target.value)}
           />
           <InputGroupAddon align="block-end">
-            <Select>
+            <Select value={type} onValueChange={setType}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Theme" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="Full Course">Full Course</SelectItem>
-                  <SelectItem value="Quick Course">Quick Course</SelectItem>
+                  <SelectItem value="fullcourse">Full Course</SelectItem>
+                  <SelectItem value="quickcourse">Quick Course</SelectItem>
 
                 </SelectGroup>
               </SelectContent>

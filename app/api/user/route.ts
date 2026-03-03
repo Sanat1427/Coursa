@@ -10,13 +10,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const users = await db.select().from(usersTable).where(eq(usersTable.email, user.primaryEmailAddress.emailAddress));
-    if (users?.length === 0) {
-        const newUser = await db.insert(usersTable).values({
-            email: user.primaryEmailAddress.emailAddress,
-            name: user.fullName || "User",
-        }).returning();
-        return NextResponse.json(newUser[0]);
+    const newUser = await db.insert(usersTable).values({
+        email: user.primaryEmailAddress.emailAddress,
+        name: user.fullName || "User",
+    }).onConflictDoNothing({ target: usersTable.email }).returning();
+
+    if (newUser.length === 0) {
+        const existingUsers = await db.select().from(usersTable).where(eq(usersTable.email, user.primaryEmailAddress.emailAddress));
+        return NextResponse.json(existingUsers[0]);
     }
-    return NextResponse.json(users[0]);
+
+    return NextResponse.json(newUser[0]);
 }

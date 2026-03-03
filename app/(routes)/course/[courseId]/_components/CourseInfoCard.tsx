@@ -26,6 +26,7 @@ function CourseInfoCard({ course }: Props) {
                 <Player
                     controls
                     component={ChapterVideo}
+                    inputProps={{ chapter: course?.courseLayout?.chapters?.[0] }}
                     durationInFrames={30}
                     compositionWidth={1280}
                     compositionHeight={720}

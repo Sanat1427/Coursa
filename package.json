@@ -12,6 +12,7 @@
     "@clerk/nextjs": "^6.38.1",
     "@google/genai": "^1.43.0",
     "@hookform/resolvers": "^5.2.2",
+    "@supabase/supabase-js": "^2.39.0",
     "@remotion/cli": "4.0.431",
     "@remotion/player": "^4.0.431",
     "axios": "^1.13.5",
@@ -54,3 +55,4 @@
     "typescript": "^5"
   }
 }
+

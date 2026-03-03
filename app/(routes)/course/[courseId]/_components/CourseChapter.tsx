@@ -11,12 +11,12 @@ function CourseChapter({ course }: Props) {
   return (
     <div className='max-w-6xl -mt-10 p-10 border rounded-3xl shadow-lg w-full
     bg-background/80 backdrop-blur-sm'>
-      <div className='flex jsutify-between items-center'>
+      <div className='flex justify-between items-center'>
         <h2 className='font-bold text-2xl'>Course Preview</h2>
         <h2 className='text-muted-foreground'>Chapters and Short Previews</h2>
       </div>
       <div className='mt-5'>
-        {course?.courseLayout?.chapters.map((chapter, index) => (
+        {course?.courseLayout?.chapters?.map((chapter, index) => (
           <Card className='mb-5' key={index}>
             <CardHeader>
               <div className='flex items-center gap-4'>
@@ -40,6 +40,7 @@ function CourseChapter({ course }: Props) {
                   <Player
                     controls
                     component={ChapterVideo}
+                    inputProps={{ chapter }}
                     durationInFrames={30}
                     compositionWidth={1280}
                     compositionHeight={720}
