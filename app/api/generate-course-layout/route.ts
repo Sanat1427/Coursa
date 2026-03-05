@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
         const rawResult = resp.text || '';
         const JsonResult = JSON.parse(rawResult);
         const courseResult = await db.insert(courseTable).values({
-            userId: user?.primaryEmailAddress?.emailAddress || ' ',
+            userId: user?.id || '',
             courseId: courseId,
             courseName: JsonResult.courseName,
             userInput: userInput,

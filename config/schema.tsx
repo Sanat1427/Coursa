@@ -1,7 +1,9 @@
 import { integer, json, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const usersTable = pgTable("users", {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  // Clerk user IDs are strings like "user_xxx", so store as varchar
+  // We removed the identity generation so that we can insert our own IDs.
+  id: varchar({ length: 255 }).primaryKey(),
   name: varchar({ length: 255 }).notNull(),
   email: varchar({ length: 255 }).notNull().unique(),
   credits: integer().default(2),
@@ -25,7 +27,7 @@ export const chaptersTable = pgTable("chapters", {
   chapterTitle: varchar({ length: 255 }).notNull(),
   videoContent: json(),
   caption: json(),
-  audioFileUrl:varchar({length:1024}),
+  audioFileUrl: varchar({length:1024}),
   createdAt: timestamp().defaultNow(),
   updatedAt: timestamp().defaultNow(),
 });
@@ -40,5 +42,7 @@ export const chapterContentSlidesTable = pgTable("chapter_content_slides", {
   narration: json().notNull(),
   html: text(),
   revealData: json().notNull(),
+  createdAt: timestamp().defaultNow(),
+  updatedAt: timestamp().defaultNow(),
 
 });

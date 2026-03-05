@@ -26,9 +26,9 @@ export function SupabaseUploadZone({
             const result = await upload(file, {
                 bucket,
                 folder,
-                onSuccess: (url) => {
+                onSuccess: (url, path) => {
                     setImageUrl(url);
-                    onUploadComplete?.(url, result.path);
+                    onUploadComplete?.(url, path);
                 },
             });
         } catch (err) {

@@ -1,4 +1,19 @@
-export const VideoSlides=[
+export interface Narration { fullText: string; }
+export interface Slide {
+    slideId: string;
+    slideIndex: number;
+    title: string;
+    subtitle?: string;
+    audioFileName: string;
+    narration: Narration;
+    html: string;
+    revealData: string[];
+}
+export interface VideoSlideData {
+    VideoContent: Slide[];
+}
+
+export const VideoSlides: VideoSlideData[] = [
     {
     "VideoContent": [
         {

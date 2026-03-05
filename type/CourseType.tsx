@@ -30,6 +30,7 @@ export type ChapterContentSlide = {
     slideId: string,
     slideIndex: number,
     audioFileName: string,
+    audioFileUrl?: string | null,
     narration: { fullText: string },
     html: string,
     revealData: string[]

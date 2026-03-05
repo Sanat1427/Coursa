@@ -6,10 +6,22 @@ import axios from "axios";
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseAdmin } from "@/config/storage";
 import { db } from "@/config/db";
-import { chaptersTable, chapterContentSlidesTable } from "@/config/schema";
+import { chaptersTable, chapterContentSlidesTable, courseTable } from "@/config/schema";
+import { currentUser } from "@clerk/nextjs/server";
+import { eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
+    const user = await currentUser();
+    if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { chapter, courseId } = await req.json();
+
+    // verify ownership
+    const courseRow = await db.select().from(courseTable).where(eq(courseTable.courseId, courseId)).limit(1);
+    if (courseRow.length === 0 || courseRow[0].userId !== user.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     //generate json schema for video
     //  const resp = await client.models.generateContent({
     // model: 'gemini-2.5-flash',
@@ -30,59 +42,83 @@ export async function POST(req: NextRequest) {
 
     let audiofileurls: string[] = [];
 
+    // generate all audio files and gather URLs; if any upload fails, abort
     for (let i = 0; i < slidesArray.length; i++) {
         const slide = slidesArray[i];
         // generate audio for this slide
-        const fondaResult = await axios.post('https://api.fonada.ai/tts/generate-audio-large', {
-            input: 'narration',
-            voice: "Vaanee",
-            language: 'English',
+        const narrationText = typeof slide.narration === 'string' ? slide.narration : slide.narration?.fullText || '';
 
-        }, {
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${process.env.FONADALAB_API_KEY}`
+        // Chunk the narration text
+        const sentences = narrationText.match(/[^.!?]+[.!?]+/g) || [narrationText];
+        const chunks: string[] = [];
+        let currentChunk = "";
+        for (const sentence of sentences) {
+            if ((currentChunk + sentence).length > 250 && currentChunk.length > 0) {
+                chunks.push(currentChunk.trim());
+                currentChunk = "";
+            }
+            currentChunk += sentence + " ";
+        }
+        if (currentChunk.trim().length > 0) {
+            chunks.push(currentChunk.trim());
+        }
 
-            },
-            responseType: 'arraybuffer',
-            timeout: 120000
-        });
+        const audioBuffers: Buffer[] = [];
+        for (const chunk of chunks) {
+            const fondaResult = await axios.post('https://api.fonada.ai/tts/generate-audio-large', {
+                input: chunk,
+                voice: "Vaanee",
+                language: 'English',
+            }, {
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${process.env.FONADALAB_API_KEY}`
+                },
+                responseType: 'arraybuffer',
+                timeout: 120000
+            });
+            audioBuffers.push(Buffer.from(fondaResult.data));
+        }
 
-        const audioBuffer = Buffer.from(fondaResult.data);
+        const audioBuffer = Buffer.concat(audioBuffers);
         const audioFile = `audio-${courseId}-chapter-${i}-${Date.now()}.mp3`;
         const audioUrl = await SaveAudioToStorage(audioBuffer, audioFile);
+        if (!audioUrl) {
+            return NextResponse.json({ error: 'Audio upload failed' }, { status: 500 });
+        }
         console.log('Audio stored at:', audioUrl);
-        audiofileurls.push(audioUrl || '');
+        audiofileurls.push(audioUrl);
     }
 
-    // persist to database
+    // persist to database inside transaction to avoid partial writes
     const chapterId = chapter.chapterId || `chap-${Date.now()}`;
-    await db.insert(chaptersTable).values({
-        courseId,
-        chapterId,
-        chapterTitle: chapter.chapterTitle || '',
-        videoContent: VideoContent,
-        caption: chapter.caption || null,
-        audioFileUrl: audiofileurls[0] || null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-    });
-
-    // insert each slide record
-    for (let i = 0; i < slidesArray.length; i++) {
-        const slide = slidesArray[i];
-        await db.insert(chapterContentSlidesTable).values({
+    await db.transaction(async (tx) => {
+        await tx.insert(chaptersTable).values({
             courseId,
             chapterId,
-            slideId: slide.slideId,
-            slideIndex: slide.slideIndex,
-            audioFileName: slide.audioFileName,
-            audioFileUrl: audiofileurls[i] || null,
-            narration: slide.narration,
-            html: slide.html,
-            revealData: slide.revealData,
+            chapterTitle: chapter.chapterTitle || '',
+            videoContent: VideoContent,
+            caption: chapter.caption || null,
+            audioFileUrl: audiofileurls[0] || null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
         });
-    }
+
+        for (let i = 0; i < slidesArray.length; i++) {
+            const slide = slidesArray[i];
+            await tx.insert(chapterContentSlidesTable).values({
+                courseId,
+                chapterId,
+                slideId: slide.slideId,
+                slideIndex: slide.slideIndex,
+                audioFileName: slide.audioFileName,
+                audioFileUrl: audiofileurls[i] || null,
+                narration: slide.narration,
+                html: slide.html,
+                revealData: slide.revealData,
+            });
+        }
+    });
 
     return NextResponse.json({ VideoContent, audiofileurls });
 }

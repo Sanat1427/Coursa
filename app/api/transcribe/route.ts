@@ -4,8 +4,25 @@ import path from "path";
 import { tmpdir } from "os";
 import { promisify } from "util";
 import { execFile } from "child_process";
+import { currentUser } from "@clerk/nextjs/server";
 
 const execFileAsync = promisify(execFile);
+
+const MAX_AUDIO_BYTES = 50 * 1024 * 1024; // 50MB
+const ALLOWED_MIMES = ["audio/mpeg", "audio/wav", "audio/webm"];
+
+function mimeToExt(mime: string): string {
+    switch (mime) {
+        case "audio/mpeg":
+            return ".mp3";
+        case "audio/wav":
+            return ".wav";
+        case "audio/webm":
+            return ".webm";
+        default:
+            return "";
+    }
+}
 
 /**
  * POST /api/transcribe
@@ -19,15 +36,30 @@ const execFileAsync = promisify(execFile);
  */
 export async function POST(req: NextRequest) {
     try {
+        const user = await currentUser();
+        if (!user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         const form = await req.formData();
-        const file = form.get("file") as Blob | null;
-        if (!file) {
-            return NextResponse.json({ error: "No file provided" }, { status: 400 });
+        const maybeFile = form.get("file");
+        if (!(maybeFile instanceof File)) {
+            return NextResponse.json({ error: "No valid file provided" }, { status: 400 });
+        }
+        const file = maybeFile as File;
+
+        if (file.size > MAX_AUDIO_BYTES) {
+            return NextResponse.json({ error: "File too large" }, { status: 413 });
+        }
+        if (!ALLOWED_MIMES.includes(file.type)) {
+            return NextResponse.json({ error: "Unsupported media type" }, { status: 415 });
         }
 
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
-        const tmpPath = path.join(tmpdir(), `upload-${Date.now()}${path.extname(file.type) || ".mp3"}`);
+        // determine extension from name or mime
+        const ext = path.extname(file.name) || mimeToExt(file.type) || ".mp3";
+        const tmpPath = path.join(tmpdir(), `upload-${Date.now()}${ext}`);
 
         // write to temporary location
         await fs.writeFile(tmpPath, buffer);

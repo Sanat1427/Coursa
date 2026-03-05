@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
         }
 
         const user = await currentUser();
-        const userId = user?.primaryEmailAddress?.emailAddress;
+        const userId = user?.id;
 
         if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,7 +37,10 @@ export async function GET(req: NextRequest) {
         if (!courses || courses.length === 0) {
             return NextResponse.json({ error: "Course not found" }, { status: 404 });
         }
-        const chaptercontentslide= await db.select().from(chapterContentSlidesTable).where(eq(chapterContentSlidesTable?.courseId, courseId as string));    
+        const chaptercontentslide= await db.select().from(chapterContentSlidesTable)
+            .where(eq(chapterContentSlidesTable?.courseId, courseId as string))
+            .orderBy(chapterContentSlidesTable.slideIndex);
+    
 
         return NextResponse.json({
             ...courses[0],

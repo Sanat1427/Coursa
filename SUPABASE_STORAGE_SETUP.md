@@ -10,8 +10,14 @@ Add these to your `.env.local` file:
 ```
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key (optional, for server-side operations)
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key (optional, for server-side operations only)
 ```
+
+> **Warning:** `SUPABASE_SERVICE_ROLE_KEY` is a highly sensitive admin-level secret. It
+> should only be used in server-side code (API routes, server actions, etc.), must
+> never be exposed to browser/client bundles or prefixed with `NEXT_PUBLIC_`, and
+> should **not** be committed to source control. Store it in your platform's secret
+> manager rather than `.env.local` in production.
 
 ## Setup Instructions
 

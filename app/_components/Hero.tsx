@@ -34,7 +34,7 @@ function Hero() {
   const router = useRouter();
   const GenerateCourseLayout = async () => {
     const toastId = toast.loading('Generating course layout...');
-    const courseId = await crypto.randomUUID();
+    const courseId = crypto.randomUUID();
     try {
       setLoading(true);
 
@@ -43,7 +43,6 @@ function Hero() {
         type,
         courseId: courseId
       });
-      console.log(result.data);
       setLoading(false);
       toast.success('Course layout generated successfully!', {
         id: toastId

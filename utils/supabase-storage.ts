@@ -1,4 +1,14 @@
-import { supabase } from "@/config/storage";
+import { supabase, supabaseAdmin } from "@/config/storage";
+
+function sanitizeComponent(str: string): string {
+    const normalized = str.normalize("NFC");
+    // allow letters, numbers, dot, dash, underscore
+    let safe = normalized.replace(/[^A-Za-z0-9.\-_/]/g, "-");
+    safe = safe.replace(/[\/]+/g, "-"); // no path separators
+    safe = safe.replace(/[-_.]{2,}/g, "-");
+    safe = safe.replace(/^[\-_.]+|[\-_.]+$/g, "");
+    return safe;
+}
 
 export interface UploadResponse {
     success: boolean;
@@ -20,13 +30,17 @@ export async function uploadFileToSupabase(
     folder: string = ""
 ): Promise<UploadResponse> {
     try {
-        // Create a unique file name
+        // sanitize components
         const timestamp = Date.now();
-        const filename = `${timestamp}-${file.name.replace(/\s+/g, "-")}`;
-        const filepath = folder ? `${folder}/${filename}` : filename;
+        const safeName = sanitizeComponent(file.name);
+        const filename = `${timestamp}-${safeName}`;
+        const safeFolder = folder ? sanitizeComponent(folder) : "";
+        const filepath = safeFolder ? `${safeFolder}/${filename}` : filename;
 
-        // Upload file to Supabase Storage
-        const { data, error } = await supabase.storage
+        // choose admin client for server-side uploads if available
+        const client = supabaseAdmin ?? supabase;
+
+        const { data, error } = await client.storage
             .from(bucket)
             .upload(filepath, file, {
                 cacheControl: "3600",
