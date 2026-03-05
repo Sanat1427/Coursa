@@ -23,36 +23,38 @@ import { QUICK_VIDEO_SUGGESTIONS } from '@/data/constant'
 import axios from 'axios'
 import { toast } from 'sonner'
 import { SignInButton, useUser } from '@clerk/nextjs'
+import { useRouter } from 'next/navigation'
 
 
 function Hero() {
   const [userInput, setUserInput] = useState('');
   const [type, setType] = useState('fullcourse');
   const [loading, setLoading] = useState(false);
-  const {user}=useUser();
+  const { user } = useUser();
+  const router = useRouter();
   const GenerateCourseLayout = async () => {
-       const toastId=toast.loading('Generating course layout...');
-       const courseId= await crypto.randomUUID();
-    try{
-    setLoading(true);
+    const toastId = toast.loading('Generating course layout...');
+    const courseId = crypto.randomUUID();
+    try {
+      setLoading(true);
 
-    const result = await axios.post('/api/generate-course-layout', {
-      userInput,
-      type,
-      courseId:courseId
-    });
-    console.log(result.data);
-    setLoading(false);
-    toast.success('Course layout generated successfully!',{
-      id:toastId
-    });
-  }catch(e){
-    
-    setLoading(false);
-    toast.error('Failed to generate course layout!',{
-      id:toastId
-    });
-  }
+      const result = await axios.post('/api/generate-course-layout', {
+        userInput,
+        type,
+        courseId: courseId
+      });
+      setLoading(false);
+      toast.success('Course layout generated successfully!', {
+        id: toastId
+      })
+      router.push('/course/' + courseId);
+    } catch (e) {
+
+      setLoading(false);
+      toast.error('Failed to generate course layout!', {
+        id: toastId
+      });
+    }
   }
   return (
     <div className='flex items-center flex-col mt-20'>
@@ -67,38 +69,38 @@ function Hero() {
             className="flex field-sizing-content min-h-24 w-full resize-none rounded-xl px-3 py-2.5 text-base transition-[color,box-shadow] outline-none md:text-sm"
             placeholder="Enter your course topic..."
             value={userInput}
-            onChange={(e)=> setUserInput(e.target.value)}
+            onChange={(e) => setUserInput(e.target.value)}
           />
           <InputGroupAddon align="block-end">
-            <Select>
+            <Select value={type} onValueChange={setType}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Theme" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="Full Course">Full Course</SelectItem>
-                  <SelectItem value="Quick Course">Quick Course</SelectItem>
+                  <SelectItem value="fullcourse">Full Course</SelectItem>
+                  <SelectItem value="quickcourse">Quick Course</SelectItem>
 
                 </SelectGroup>
               </SelectContent>
             </Select>
-            {user?
-            <InputGroupButton className="ml-auto" size="icon-sm" variant="default"
-              onClick={GenerateCourseLayout} disabled={loading}>
-              {loading ? <Loader2 className='animate-spin' /> :
-                <Send />}
-            </InputGroupButton>
-            :<SignInButton mode ='modal'>
-            <InputGroupButton className="ml-auto" size="icon-sm" variant="default">
-              <Send/>
-            </InputGroupButton>
-            </SignInButton>}
+            {user ?
+              <InputGroupButton className="ml-auto" size="icon-sm" variant="default"
+                onClick={GenerateCourseLayout} disabled={loading}>
+                {loading ? <Loader2 className='animate-spin' /> :
+                  <Send />}
+              </InputGroupButton>
+              : <SignInButton mode='modal'>
+                <InputGroupButton className="ml-auto" size="icon-sm" variant="default">
+                  <Send />
+                </InputGroupButton>
+              </SignInButton>}
           </InputGroupAddon>
         </InputGroup>
       </div>
       <div className='flex gap-5 mt-5 max-w-3xl flex-wrap justify-center z-10'>
         {QUICK_VIDEO_SUGGESTIONS.map((suggestion, index) => (
-          <h2 key={index} onClick={()=> setUserInput(suggestion?.prompt)} className='border rounded-2xl px-2 p-1 text-sm bg-white'>{suggestion.title}</h2>
+          <h2 key={index} onClick={() => setUserInput(suggestion?.prompt)} className='border rounded-2xl px-2 p-1 text-sm bg-white'>{suggestion.title}</h2>
         ))}
       </div>
     </div>

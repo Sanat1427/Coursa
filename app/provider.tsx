@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { UserDetailContext } from '@/context/userDetailContext';
 import Header from './_components/Header';
 
-function provider({ children }: { children: React.ReactNode }) {
+function Provider({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
   const [userDetail, setUserDetail] = useState(null);
 
@@ -14,9 +14,25 @@ function provider({ children }: { children: React.ReactNode }) {
     user && createNewUser();
   }, [user])
   const createNewUser = async () => {
-    const result = await axios.post('/api/user');
-    console.log(result.data);
-    setUserDetail(result?.data);
+    let attempts = 0;
+    while (attempts < 2) {
+      try {
+        const result = await axios.post('/api/user');
+        setUserDetail(result?.data || {});
+        return;
+      } catch (e) {
+        attempts += 1;
+        console.error("Failed to create/fetch user", e, "attempt", attempts);
+        if (attempts >= 2) {
+          // fallback value
+          setUserDetail({});
+          // optionally notify user via toast or other mechanism
+          // toast.error("Unable to load user details");
+        } else {
+          await new Promise((r) => setTimeout(r, 500 * attempts));
+        }
+      }
+    }
   }
   return (
     <div>
@@ -30,4 +46,4 @@ function provider({ children }: { children: React.ReactNode }) {
   )
 }
 
-export default provider
+export default Provider

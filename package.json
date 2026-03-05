@@ -12,7 +12,9 @@
     "@clerk/nextjs": "^6.38.1",
     "@google/genai": "^1.43.0",
     "@hookform/resolvers": "^5.2.2",
-    "@neondatabase/serverless": "^1.0.2",
+    "@supabase/supabase-js": "^2.39.0",
+    "@remotion/cli": "^4.0.431",
+    "@remotion/player": "^4.0.431",
     "axios": "^1.13.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -25,6 +27,7 @@
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
+    "postgres": "^3.4.8",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-day-picker": "^9.13.2",
@@ -33,6 +36,7 @@
     "react-resizable-panels": "^4.6.4",
     "react-textarea-autosize": "^8.5.9",
     "recharts": "^2.15.4",
+    "remotion": "4.0.431",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "vaul": "^1.1.2",
@@ -51,3 +55,4 @@
     "typescript": "^5"
   }
 }
+
