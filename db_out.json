@@ -1,0 +1,27 @@
+[
+  {
+    "courseId": "29225d78-edba-4b63-ba19-68e82ece35cc",
+    "userId": "sanatkishore04@gmail.com",
+    "courseName": "JavaScript Fundamentals: A Beginner's Guide"
+  },
+  {
+    "courseId": "fdcbc60e-04cb-463b-8fe4-112e06379a15",
+    "userId": "sanatkishore04@gmail.com",
+    "courseName": "Python Basics: Your First Steps into Coding"
+  },
+  {
+    "courseId": "74ec8754-b287-4c54-9273-f8acb48e4105",
+    "userId": "sanatkishore04@gmail.com",
+    "courseName": "Next.js Fundamentals"
+  },
+  {
+    "courseId": "95d3df0f-5db9-4c89-bdce-eace6ce0ffa1",
+    "userId": "user_39ygyPosdCsnmyEzkZrlaglh5MF",
+    "courseName": "Tailwind CSS Essentials"
+  },
+  {
+    "courseId": "ca208acd-dcb1-436a-b717-f5bf0a9994de",
+    "userId": "user_39ygyPosdCsnmyEzkZrlaglh5MF",
+    "courseName": "Tailwind CSS Essentials: Utility-First Styling"
+  }
+]

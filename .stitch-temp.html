@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#2525f4",
+                        "accent": "#9333ea",
+                        "background-light": "#f5f5f8",
+                        "background-dark": "#08081a",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .text-gradient {
+            background: linear-gradient(to right, #9333ea, #2525f4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .glow-button {
+            box-shadow: 0 0 20px rgba(37, 37, 244, 0.4);
+        }
+        .bg-glow {
+            background: radial-gradient(circle at 50% 50%, rgba(147, 51, 234, 0.15) 0%, rgba(37, 37, 244, 0.05) 50%, transparent 100%);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased overflow-x-hidden">
+<!-- Background Decoration -->
+<div class="fixed inset-0 z-0 pointer-events-none">
+<div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent/20 blur-[120px] rounded-full"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full"></div>
+<div class="absolute inset-0 bg-glow"></div>
+</div>
+<div class="relative z-10 flex flex-col min-h-screen">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between px-6 py-5 lg:px-20 border-b border-white/5 backdrop-blur-md">
+<div class="flex items-center gap-3">
+<div class="bg-primary p-2 rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">auto_awesome</span>
+</div>
+<h2 class="text-xl font-bold tracking-tight">CourseAI</h2>
+</div>
+<nav class="hidden md:flex items-center gap-10">
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Features</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Showcase</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Pricing</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Docs</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="px-5 py-2 text-sm font-semibold hover:text-primary transition-colors">Log In</button>
+<button class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg text-sm font-bold transition-all shadow-lg shadow-primary/20">
+                    Get Started
+                </button>
+</div>
+</header>
+<!-- Hero Section -->
+<main class="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center">
+<!-- Hero Text -->
+<div class="max-w-4xl mx-auto mb-12">
+<h1 class="text-5xl md:text-7xl font-bold leading-[1.1] tracking-tight mb-6">
+                    Learn Smarter with <br/>
+<span class="text-gradient">AI Video Courses</span>
+</h1>
+<p class="text-lg md:text-xl text-slate-400 font-normal max-w-2xl mx-auto">
+                    Turn any topic into a complete course in seconds. Experience professional pedagogy powered by next-generation synthetic media.
+                </p>
+</div>
+<!-- Glassmorphism Input Card -->
+<div class="w-full max-w-3xl mx-auto glass-card rounded-2xl p-6 shadow-2xl">
+<div class="relative mb-4">
+<textarea class="w-full bg-transparent border-none focus:ring-0 text-xl md:text-2xl placeholder:text-slate-600 resize-none min-h-[120px] transition-all" placeholder="Enter your course topic... e.g. Advanced React Hooks"></textarea>
+</div>
+<div class="flex flex-col md:flex-row items-stretch md:items-center gap-4 pt-4 border-t border-white/10">
+<div class="flex flex-1 items-center gap-3">
+<!-- Language Selector -->
+<div class="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg cursor-pointer transition-colors border border-white/5 group">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary text-xl">language</span>
+<span class="text-sm font-medium">English</span>
+<span class="material-symbols-outlined text-slate-500 text-sm">expand_more</span>
+</div>
+<!-- Course Type -->
+<div class="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg cursor-pointer transition-colors border border-white/5 group">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary text-xl">layers</span>
+<span class="text-sm font-medium">Full Course</span>
+<span class="material-symbols-outlined text-slate-500 text-sm">expand_more</span>
+</div>
+</div>
+<!-- Generate Button -->
+<button class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 glow-button group">
+<span>Generate Course</span>
+<span class="material-symbols-outlined text-lg group-hover:rotate-12 transition-transform">auto_awesome</span>
+</button>
+</div>
+</div>
+<!-- Quick Suggestions -->
+<div class="mt-12 flex flex-col items-center gap-4">
+<span class="text-xs font-bold uppercase tracking-widest text-slate-500">Popular Topics</span>
+<div class="flex flex-wrap justify-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 glass-card hover:border-primary/50 transition-colors text-sm font-medium group">
+<span class="w-2 h-2 rounded-full bg-accent"></span>
+                        Python Basics
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 glass-card hover:border-primary/50 transition-colors text-sm font-medium group">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+                        Next.js Routing
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 glass-card hover:border-primary/50 transition-colors text-sm font-medium group">
+<span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                        CSS Grid Masterclass
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 glass-card hover:border-primary/50 transition-colors text-sm font-medium group">
+<span class="w-2 h-2 rounded-full bg-green-400"></span>
+                        Machine Learning 101
+                    </button>
+</div>
+</div>
+</main>
+<!-- Feature Grid (Subtle) -->
+<section class="max-w-6xl mx-auto w-full px-6 py-20">
+<div class="grid md:grid-cols-3 gap-8">
+<div class="p-6 rounded-2xl border border-white/5 glass-card">
+<span class="material-symbols-outlined text-accent mb-4 text-3xl">edit_note</span>
+<h3 class="text-lg font-bold mb-2">Auto-Scripting</h3>
+<p class="text-slate-400 text-sm">AI writes comprehensive scripts based on pedagogically sound principles.</p>
+</div>
+<div class="p-6 rounded-2xl border border-white/5 glass-card">
+<span class="material-symbols-outlined text-primary mb-4 text-3xl">videocam</span>
+<h3 class="text-lg font-bold mb-2">Video Synthesis</h3>
+<p class="text-slate-400 text-sm">High-quality video lessons generated instantly with lifelike narrators.</p>
+</div>
+<div class="p-6 rounded-2xl border border-white/5 glass-card">
+<span class="material-symbols-outlined text-green-400 mb-4 text-3xl">quiz</span>
+<h3 class="text-lg font-bold mb-2">Interactive Quizzes</h3>
+<p class="text-slate-400 text-sm">Real-time assessments generated to test and reinforce your knowledge.</p>
+</div>
+</div>
+</section>
+<!-- Footer Footer -->
+<footer class="mt-auto px-6 py-10 text-center border-t border-white/5">
+<p class="text-slate-500 text-sm">© 2024 CourseAI Inc. Empowering the future of decentralized learning.</p>
+</footer>
+</div>
+</body></html>

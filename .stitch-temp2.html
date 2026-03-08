@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Sketchbook AI Course Landing Page</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&amp;family=Patrick+Hand&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#af25f4",
+                        "paper": "#fdfaf6",
+                        "sketch-yellow": "#fef9c3",
+                        "background-light": "#f7f5f8",
+                        "background-dark": "#1c1022",
+                    },
+                    fontFamily: {
+                        "display": ["Kalam", "cursive"],
+                        "body": ["Patrick Hand", "cursive"],
+                        "sans": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        .wobbly-border {
+            border: 3px solid #000;
+            border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+        }
+
+        .hard-shadow {
+            box-shadow: 6px 6px 0px 0px #000;
+        }
+
+        .hard-shadow-sm {
+            box-shadow: 4px 4px 0px 0px #000;
+        }
+
+        .dot-pattern {
+            background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .scribble-underline {
+            position: relative;
+        }
+
+        .scribble-underline::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            bottom: -8px;
+            width: 100%;
+            height: 10px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M0,5 Q25,0 50,5 T100,5" stroke="%23af25f4" stroke-width="4" fill="none"/></svg>');
+            background-size: 100% 100%;
+        }
+
+        .wavy-hover:hover {
+            text-decoration: underline wavy #af25f4;
+        }
+    </style>
+</head>
+
+<body class="bg-paper dot-pattern font-body text-slate-900 overflow-x-hidden">
+    <div class="max-w-[1200px] mx-auto px-6 py-8">
+        <!-- Navigation -->
+        <header class="wobbly-border hard-shadow bg-white px-8 py-4 flex items-center justify-between mb-16">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-primary text-3xl">draw</span>
+                <h2 class="font-display text-2xl font-bold tracking-tight">Coursa</h2>
+            </div>
+            <nav class="hidden md:flex items-center gap-10">
+                <a class="font-display text-lg wavy-hover" href="#">Features</a>
+                <a class="font-display text-lg wavy-hover" href="#">Courses</a>
+                <a class="font-display text-lg wavy-hover" href="#">Pricing</a>
+                <a class="font-display text-lg wavy-hover" href="#">About</a>
+            </nav>
+            <button
+                class="bg-primary text-white font-display text-lg px-6 py-2 wobbly-border hard-shadow-sm hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
+                Sign In
+            </button>
+        </header>
+        <!-- Hero Section -->
+        <main class="relative grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-24">
+            <div class="lg:col-span-7 flex flex-col gap-8">
+                <div class="relative">
+                    <span
+                        class="material-symbols-outlined absolute -top-12 -left-8 text-6xl text-slate-300 opacity-50 -rotate-12">edit</span>
+                    <h1 class="font-display text-6xl md:text-7xl font-bold leading-tight">
+                        Learn Smarter with <span class="scribble-underline text-primary">{AI Courses}</span>
+                    </h1>
+                </div>
+                <p class="text-2xl text-slate-700 max-w-xl">
+                    Transform any topic into a complete video course instantly with our hand-drawn AI-powered generator.
+                </p>
+                <div class="flex flex-wrap gap-3 mt-4">
+                    <span class="text-lg font-display text-slate-500 mr-2">Quick Suggestions:</span>
+                    <button
+                        class="wobbly-border px-4 py-1 bg-white hover:bg-primary/10 transition-colors text-lg">Python
+                        Basics</button>
+                    <button
+                        class="wobbly-border px-4 py-1 bg-white hover:bg-primary/10 transition-colors text-lg">Next.js
+                        Routing</button>
+                    <button class="wobbly-border px-4 py-1 bg-white hover:bg-primary/10 transition-colors text-lg">UI
+                        Design 101</button>
+                </div>
+            </div>
+            <div class="lg:col-span-5">
+                <div class="wobbly-border hard-shadow bg-white p-8 flex flex-col gap-6 relative">
+                    <span
+                        class="material-symbols-outlined absolute -top-6 -right-6 text-4xl text-yellow-500 rotate-12 bg-white rounded-full p-2 border-2 border-black">lightbulb</span>
+                    <div class="flex flex-col gap-2">
+                        <label class="font-display text-xl font-bold">Course Topic</label>
+                        <textarea
+                            class="wobbly-border w-full p-4 font-body text-xl focus:ring-primary focus:border-primary min-h-[120px]"
+                            placeholder="What do you want to learn today?"></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-2">
+                            <label class="font-display text-lg font-bold">Language</label>
+                            <select
+                                class="wobbly-border w-full p-3 font-body text-lg focus:ring-primary focus:border-primary">
+                                <option>English</option>
+                                <option>Spanish</option>
+                                <option>French</option>
+                                <option>Japanese</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="font-display text-lg font-bold">Theme</label>
+                            <select
+                                class="wobbly-border w-full p-3 font-body text-lg focus:ring-primary focus:border-primary">
+                                <option>Sketchbook</option>
+                                <option>Blueprint</option>
+                                <option>Chalkboard</option>
+                                <option>Modern</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button
+                        class="w-full bg-primary text-white font-display text-2xl py-4 wobbly-border hard-shadow hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all mt-2">
+                        Generate Course
+                    </button>
+                    <div class="flex justify-center gap-4 mt-2">
+                        <span class="material-symbols-outlined text-slate-400">code</span>
+                        <span class="material-symbols-outlined text-slate-400">video_library</span>
+                        <span class="material-symbols-outlined text-slate-400">quiz</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <!-- Feature Grid -->
+        <section class="mb-24">
+            <h3
+                class="font-display text-4xl text-center mb-16 underline decoration-primary decoration-4 underline-offset-8">
+                Why Sketchbook AI?</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                <div class="wobbly-border hard-shadow bg-white p-8 -rotate-1 hover:rotate-0 transition-transform">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-6 wobbly-border">
+                        <span class="material-symbols-outlined text-blue-600 text-3xl">auto_videocam</span>
+                    </div>
+                    <h4 class="font-display text-2xl font-bold mb-4">Instant Video</h4>
+                    <p class="text-xl text-slate-600 leading-relaxed">Turn text prompts into narrated, illustrated video
+                        lessons in under 60 seconds.</p>
+                </div>
+                <div class="wobbly-border hard-shadow bg-white p-8 rotate-1 hover:rotate-0 transition-transform">
+                    <div
+                        class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6 wobbly-border">
+                        <span class="material-symbols-outlined text-green-600 text-3xl">task_alt</span>
+                    </div>
+                    <h4 class="font-display text-2xl font-bold mb-4">Smart Quizzes</h4>
+                    <p class="text-xl text-slate-600 leading-relaxed">AI generates interactive challenges based on your
+                        course content to test your skills.</p>
+                </div>
+                <div class="wobbly-border hard-shadow bg-white p-8 -rotate-1 hover:rotate-0 transition-transform">
+                    <div
+                        class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-6 wobbly-border">
+                        <span class="material-symbols-outlined text-primary text-3xl">edit_square</span>
+                    </div>
+                    <h4 class="font-display text-2xl font-bold mb-4">Editable Assets</h4>
+                    <p class="text-xl text-slate-600 leading-relaxed">Export every illustration and diagram as
+                        hand-drawn SVGs for your own projects.</p>
+                </div>
+            </div>
+        </section>
+        <!-- Gallery Section -->
+        <section class="mb-24">
+            <h3 class="font-display text-4xl text-center mb-16">Community Creations</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                <!-- Polaroid 1 -->
+                <div class="relative p-4 bg-white border-2 border-slate-200 shadow-md rotate-2 group">
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 w-20 h-8 bg-blue-400/30 -rotate-3 z-10"></div>
+                    <div class="w-full aspect-square bg-slate-100 mb-4 overflow-hidden border border-slate-200">
+                        <img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                            alt="Abstract watercolor painting of a landscape"
+                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBpKpUmEsn8xT2YFgDtLwGs506CY5MxOPLD7eah4Kal7XMwGRRpnKMSkwrgRlZBGXnFzRKyclfSWDSJelc53vU3RHl6H-mfNQu_70GZXnVAVBX9XqGXFQHG3WBT75-sRyRgzUeu9LLOqN-Xy22j44eM0cfofrYkOmYfQhXWuahhVC22ldzGCqoiUNnyFju2UFIilL4hE0pRy5wjfGbgaUmP7dv8cO1PQsThdJoafiQw9x73xYK7Y2prO7zaY3UxL8-Byka3KYneGsM" />
+                    </div>
+                    <p class="font-display text-center text-lg">Mastering Watercolors</p>
+                    <div class="absolute -top-2 -right-2 w-4 h-4 bg-red-600 rounded-full border border-black shadow-sm">
+                    </div>
+                </div>
+                <!-- Polaroid 2 -->
+                <div class="relative p-4 bg-white border-2 border-slate-200 shadow-md -rotate-3 group">
+                    <div class="absolute -top-4 left-1/4 -translate-x-1/2 w-20 h-8 bg-yellow-400/30 rotate-6 z-10">
+                    </div>
+                    <div class="w-full aspect-square bg-slate-100 mb-4 overflow-hidden border border-slate-200">
+                        <img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                            alt="A computer screen showing code snippets"
+                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbxATLD5B-fomxBtHzllRRfi6UGUU5-kEbfrm71hTgxi8aHf-UwUyLpObrSQFa8dkeGgrizwpGB-EV4Zqyhkyva9cdU3gxlqvKjMsxKqz5RH49dJxApPeVozKbYo43smaTJ_4tRycrr0nRZ5hh9pp-uCrvR6ccUGlQtxXhxAURQk2zttO4_bdu_ZOb91itH-CKqhwiNIUB9CFaTtpDH4Jm79_i1idhOeZqKN98OqAxM4awP0Uy6oFdZCTlSz1T4QmnEmot1EYh91I" />
+                    </div>
+                    <p class="font-display text-center text-lg">JS for Beginners</p>
+                </div>
+                <!-- Polaroid 3 -->
+                <div class="relative p-4 bg-white border-2 border-slate-200 shadow-md rotate-1 group">
+                    <div class="absolute -top-4 right-1/4 translate-x-1/2 w-24 h-10 bg-green-400/30 -rotate-12 z-10">
+                    </div>
+                    <div class="w-full aspect-square bg-slate-100 mb-4 overflow-hidden border border-slate-200">
+                        <img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                            alt="Architectural drawing with compass and ruler"
+                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXjXCRs1H1QXQHMMm5xJ8ZwvDpWKwHRnr3gxEMwA4y_8bvxyKIUdq_46CmVnf-k2OqK5flYzY3qVoByzPfkmkw8dD6-MEH3yf1dcpyn22rhmFMsw4fgu2Ca6mlr3AnR-5DJ3_2nR83M1ceuSDtZTw0up9tSf4PEH5jJsI9eYzFdOLPEhmuCmiJ8O0tl6ZD3o4QP2UUo_kJOft4q24kJw7fBJPBlXKPmA8JEVHVPK13Mjnq3yVz3-adm_UbK70apeYV_z16PBDxfKE" />
+                    </div>
+                    <p class="font-display text-center text-lg">Intro to Perspective</p>
+                    <div
+                        class="absolute -bottom-2 -left-2 w-4 h-4 bg-red-600 rounded-full border border-black shadow-sm">
+                    </div>
+                </div>
+                <!-- Polaroid 4 -->
+                <div class="relative p-4 bg-white border-2 border-slate-200 shadow-md -rotate-1 group">
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 w-16 h-8 bg-purple-400/30 rotate-2 z-10">
+                    </div>
+                    <div class="w-full aspect-square bg-slate-100 mb-4 overflow-hidden border border-slate-200">
+                        <img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                            alt="Close up of a creative workspace with a pencil"
+                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1fzYDhS2_TzEA2Ulzsj1VQysygTkg865NB1pOTiSCz3qsATEEeA5ZzKt02Yb_K6mDFguzfWa5kipNSwd14GGr0FiF4-B8UbBn1F7JSIcFONV-cDiFccZ8ffMfsJwOln_H0SgvQpOV1-ycn0LHMUPXYZhXW4dPpdUkb7CRIDu5fFZLtmE71SSR31t2BaL1RPTVRvpW2cvAzdjpercVjr_v-ZpOvKvSVqy-ygt-j3yisZU9Zg_HVliK2TRV6M4zwDk_TQHMGIsNP2Q" />
+                    </div>
+                    <p class="font-display text-center text-lg">Storytelling 101</p>
+                </div>
+            </div>
+        </section>
+        <!-- Newsletter Sticky Note -->
+        <section class="flex justify-center mb-16">
+            <div class="w-full max-w-2xl bg-sketch-yellow p-12 wobbly-border hard-shadow relative">
+                <span class="material-symbols-outlined absolute top-4 left-4 text-slate-400 text-3xl">push_pin</span>
+                <div class="flex flex-col items-center text-center gap-6">
+                    <h3 class="font-display text-4xl font-bold">Get Course Updates!</h3>
+                    <p class="text-2xl text-slate-800 max-w-md italic">Leave your email and we'll send you a weekly
+                        doodle-packed newsletter.</p>
+                    <div class="w-full flex flex-col md:flex-row gap-4 mt-4">
+                        <input
+                            class="flex-1 wobbly-border bg-white/50 p-4 font-body text-xl focus:ring-primary focus:border-primary"
+                            placeholder="yourname@email.com" type="email" />
+                        <button
+                            class="bg-black text-white px-8 py-4 font-display text-xl wobbly-border hard-shadow-sm hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
+                            Sticky Me!
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- Footer -->
+        <footer class="border-t-2 border-dashed border-slate-300 pt-12 pb-8 flex flex-col items-center gap-6">
+            <div class="flex gap-8">
+                <a class="font-display text-xl wavy-hover" href="#">Twitter</a>
+                <a class="font-display text-xl wavy-hover" href="#">Discord</a>
+                <a class="font-display text-xl wavy-hover" href="#">YouTube</a>
+            </div>
+            <p class="font-body text-xl text-slate-500">Hand-drawn with ♥ by Coursa AI Team © 2024</p>
+        </footer>
+    </div>
+</body>
+
+</html>
