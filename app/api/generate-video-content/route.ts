@@ -48,19 +48,24 @@ export async function POST(req: NextRequest) {
         console.log("[CACHE MISS] Queuing background job for:", chapter.chapterTitle);
 
         // Dispatch Background Job to Inngest
-        await inngest.send({
-            name: "video/generate",
-            data: {
-                chapter,
-                courseId,
-                courseName: courseRow[0].courseName,
-                language: courseRow[0].language
-            }
-        });
+        try {
+            await inngest.send({
+                name: "video/generate",
+                data: {
+                    chapter,
+                    courseId,
+                    courseName: courseRow[0].courseName,
+                    language: courseRow[0].language
+                }
+            });
+        } catch (inngestErr: any) {
+            console.error("[inngest.send] Dispatch Failed:", inngestErr?.body || inngestErr?.message || inngestErr);
+            throw inngestErr;
+        }
 
         return NextResponse.json({ status: "queued" });
     } catch (e: any) {
-        console.error("[generate-video-content] Internal Server Error:", e?.message || e);
-        return NextResponse.json({ error: "Internal Server Error", detail: e?.message }, { status: 500 });
+        console.error("[generate-video-content] Internal Server Error:", e?.message || e?.body || JSON.stringify(e));
+        return NextResponse.json({ error: "Internal Server Error", detail: e?.message || "Unknown error during queueing" }, { status: 500 });
     }
 }
