@@ -11,7 +11,7 @@ const globalForDb = globalThis as unknown as {
 };
 
 const queryClient = globalForDb.__postgresClient ?? postgres(process.env.DATABASE_URL, { prepare: false });
-if (process.env.NODE_ENV !== "production") globalForDb.__postgresClient = queryClient;
+globalForDb.__postgresClient = queryClient;
 
 export const db = globalForDb.__drizzleDB ?? drizzle(queryClient);
-if (process.env.NODE_ENV !== "production") globalForDb.__drizzleDB = db;
+globalForDb.__drizzleDB = db;
