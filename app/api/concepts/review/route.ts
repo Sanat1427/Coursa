@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { conceptMasteryTable } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { currentUser } from "@clerk/nextjs/server";
+import { revalidateTag } from "next/cache";
 
 export async function POST(req: NextRequest) {
     try {
@@ -79,6 +80,12 @@ export async function POST(req: NextRequest) {
             status = "Needs Review";
         } else {
             status = "Ready to Learn";
+        }
+
+        try {
+            revalidateTag("readiness", "max");
+        } catch (err) {
+            console.warn("revalidateTag failed in POST /api/concepts/review:", err);
         }
 
         return NextResponse.json({

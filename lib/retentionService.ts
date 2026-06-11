@@ -13,6 +13,15 @@ import {
 } from "./schema";
 import { eq, and, lte, sql, inArray, ne } from "drizzle-orm";
 import { client } from "./gemini";
+import { unstable_cache, revalidateTag } from "next/cache";
+
+function safeRevalidateReadiness() {
+  try {
+    revalidateTag("readiness", "max");
+  } catch (err) {
+    console.warn("revalidateTag failed (probably running in non-Next context):", err);
+  }
+}
 
 // Predefined Concepts list to seed the DB (fallback & bootstrap)
 export const CORE_CONCEPTS = [
@@ -459,6 +468,7 @@ Return the result as a raw JSON array of objects with the exact schema:
         }
       }
       
+      safeRevalidateReadiness();
       console.log(`Initialized revision schedule for user=${userId}, chapter=${chapterId}`);
     } catch (e) {
       console.error("Failed to initialize revision schedule:", e);
@@ -595,6 +605,7 @@ Return the result as a raw JSON array of objects with the exact schema:
         });
       }
 
+      safeRevalidateReadiness();
       console.log(`Completed review ${currentSched.reviewNumber} for chapter ${chapterId}. Next: #${nextReviewNumber} in ${nextIntervalDays} days.`);
       return { success: true, newScore, nextReviewDate: scheduledTime };
     } catch (e: any) {
@@ -679,6 +690,7 @@ Return the result as a raw JSON array of objects with the exact schema:
           easeFactor: nextEaseFactor
         });
       }
+      safeRevalidateReadiness();
     } catch (e) {
       console.error("Failed to update overdue reviews:", e);
     }
@@ -687,7 +699,7 @@ Return the result as a raw JSON array of objects with the exact schema:
   /**
    * Concept Readiness Engine: Determines nodes that are Mastered, Needs Review, Ready to Learn, or Locked.
    */
-  async getConceptReadiness(userId: string) {
+  async getConceptReadinessRaw(userId: string) {
     // Make sure seeded
     await this.seedCoreConcepts();
 
@@ -795,6 +807,10 @@ Return the result as a raw JSON array of objects with the exact schema:
     };
   },
 
+  async getConceptReadiness(userId: string) {
+    return getCachedConceptReadiness(userId);
+  },
+
   /**
    * Calculates Course Evolution Status (Locked, In Progress, Completed) based on concept prerequisites.
    */
@@ -874,3 +890,14 @@ Return the result as a raw JSON array of objects with the exact schema:
     });
   }
 };
+
+const getCachedConceptReadiness = unstable_cache(
+  async (userId: string) => {
+    return RetentionService.getConceptReadinessRaw(userId);
+  },
+  ["concept-readiness"],
+  {
+    revalidate: 300, // 5 minutes cache
+    tags: ["readiness"]
+  }
+);
