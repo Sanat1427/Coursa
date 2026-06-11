@@ -39,6 +39,30 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
     const [isFlipped, setIsFlipped] = useState(false);
     const [ratingLoading, setRatingLoading] = useState(false);
 
+    // Alternative Videos state
+    const [showAltDropdown, setShowAltDropdown] = useState(false);
+    const [swappingVideo, setSwappingVideo] = useState(false);
+
+    const handleSwapVideo = async (videoId: string) => {
+        setSwappingVideo(true);
+        const toastId = toast.loading("Swapping video content...");
+        try {
+            await axios.patch("/api/course", {
+                chapterId: activeChapter.chapterId,
+                videoId
+            });
+            toast.success("Video swapped successfully!", { id: toastId });
+            setShowAltDropdown(false);
+            // Reload workspace data to fetch updated alternatives and metadata
+            await loadChapterWorkspace(activeChapter.chapterId);
+        } catch (err) {
+            console.error("Failed to swap video", err);
+            toast.error("Failed to swap video selection", { id: toastId });
+        } finally {
+            setSwappingVideo(false);
+        }
+    };
+
     useEffect(() => {
         if (activeChapter) {
             loadChapterWorkspace(activeChapter.chapterId);
@@ -233,21 +257,110 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
 
                             {/* Video Section */}
                             <div className="w-full flex flex-col gap-4">
+                                {workspaceData?.isFallback && !(
+                                    !(activeChapter.youtubeVideoId || workspaceData?.youtubeVideoId) ||
+                                    (activeChapter.youtubeVideoId || workspaceData?.youtubeVideoId) === "No suitable video found"
+                                ) && (
+                                    <div className="p-4 bg-amber-50 wobbly-border border-amber-400 text-amber-800 font-sans text-sm font-semibold flex items-center gap-2">
+                                        <span>⚠️</span>
+                                        <span>{workspaceData.fallbackMessage || `We couldn't find a high-quality video in the requested language. Showing the best English alternative.`}</span>
+                                    </div>
+                                )}
+
                                 <div className="w-full wobbly-border hard-shadow-sm bg-black overflow-hidden flex items-center justify-center relative" style={{ aspectRatio: "16/9" }}>
-                                    {(activeChapter.youtubeVideoId || workspaceData?.youtubeVideoId) ? (
-                                        <YouTubePlayer 
-                                            videoId={activeChapter.youtubeVideoId || workspaceData?.youtubeVideoId} 
-                                            onPlayerReady={setYtPlayer} 
-                                        />
-                                    ) : workspaceLoading ? (
+                                    {workspaceLoading ? (
                                         <div className="flex flex-col items-center justify-center gap-3">
                                             <Loader2 className="w-8 h-8 animate-spin text-white/60" />
                                             <span className="text-white/50 font-sans text-center text-sm">Fetching video...</span>
                                         </div>
                                     ) : (
-                                        <div className="text-white/50 font-sans text-center text-lg p-4">No video available for this chapter</div>
+                                        !(activeChapter.youtubeVideoId || workspaceData?.youtubeVideoId) ||
+                                        (activeChapter.youtubeVideoId || workspaceData?.youtubeVideoId) === "No suitable video found"
+                                    ) ? (
+                                        <div className="flex flex-col items-center justify-center p-6 text-center h-full w-full bg-slate-900 text-white relative">
+                                            <div className="bg-red-500/10 border-2 border-dashed border-red-500 text-red-400 p-6 wobbly-border max-w-md mx-auto">
+                                                <span className="text-3xl block mb-2">⚠️</span>
+                                                <h3 className="font-display font-black text-lg uppercase tracking-wide">No suitable video found</h3>
+                                                <p className="text-xs font-sans mt-2 text-slate-300 leading-relaxed">
+                                                    We couldn't find a high-quality video matching this chapter's exact framework and learning objective.
+                                                </p>
+                                            </div>
+                                            
+                                            {workspaceData?.alternativeVideos && workspaceData.alternativeVideos.length > 0 && (
+                                                <div className="mt-4 w-full max-w-lg">
+                                                    <span className="text-xs text-slate-400 block mb-2 font-sans font-bold">
+                                                        You can try one of these close matches:
+                                                    </span>
+                                                    <div className="flex flex-wrap justify-center gap-2 max-h-32 overflow-y-auto p-1">
+                                                        {workspaceData.alternativeVideos.map((alt: any) => (
+                                                            <button
+                                                                key={alt.videoId}
+                                                                disabled={swappingVideo}
+                                                                onClick={() => handleSwapVideo(alt.videoId)}
+                                                                className="px-3 py-1.5 bg-slate-800 text-white hover:bg-slate-700 transition-all font-sans text-xs wobbly-border border-slate-700 cursor-pointer disabled:opacity-50 line-clamp-1 max-w-[200px]"
+                                                                title={alt.title}
+                                                            >
+                                                                {alt.title}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <YouTubePlayer 
+                                            videoId={activeChapter.youtubeVideoId || workspaceData?.youtubeVideoId} 
+                                            onPlayerReady={setYtPlayer} 
+                                        />
                                     )}
                                 </div>
+
+                                {workspaceData && (
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50 wobbly-border p-3 border-dashed border-2 border-slate-300">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-display font-black uppercase bg-sketch-primary/10 text-sketch-primary px-2.5 py-1 wobbly-border border-sketch-primary/30">
+                                                📹 Video Language: {workspaceData.videoLanguage || "English"}
+                                            </span>
+                                        </div>
+                                        
+                                        {workspaceData.alternativeVideos && workspaceData.alternativeVideos.length > 0 && (
+                                            <div className="relative">
+                                                <button
+                                                    onClick={() => setShowAltDropdown(!showAltDropdown)}
+                                                    className="px-3 py-1.5 bg-white wobbly-border hover:bg-slate-50 transition-all font-display text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                                                >
+                                                    ✨ Show Alternative Videos ({workspaceData.alternativeVideos.length})
+                                                </button>
+                                                
+                                                {showAltDropdown && (
+                                                    <div className="absolute right-0 bottom-full mb-2 w-80 bg-white wobbly-border border-2 border-black hard-shadow p-3 z-50 flex flex-col gap-2 max-h-60 overflow-y-auto">
+                                                        <h4 className="font-display font-black text-xs text-slate-800 border-b border-dashed border-slate-200 pb-1.5 uppercase tracking-wide">
+                                                            Select Alternative Video
+                                                        </h4>
+                                                        {workspaceData.alternativeVideos.map((alt: any) => (
+                                                            <button
+                                                                key={alt.videoId}
+                                                                disabled={swappingVideo}
+                                                                onClick={() => handleSwapVideo(alt.videoId)}
+                                                                className="text-left w-full p-2 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all flex flex-col gap-1 cursor-pointer disabled:opacity-50"
+                                                            >
+                                                                <span className="font-display font-bold text-xs text-slate-800 line-clamp-1">
+                                                                    {alt.title}
+                                                                </span>
+                                                                <div className="flex items-center justify-between text-[10px] font-sans text-slate-500 font-semibold w-full">
+                                                                    <span>👤 {alt.channelTitle || "YouTube Channel"}</span>
+                                                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold uppercase">
+                                                                        {alt.language}
+                                                                    </span>
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {workspaceLoading ? (

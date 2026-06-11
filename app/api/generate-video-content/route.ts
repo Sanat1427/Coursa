@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { chaptersTable, courseTable } from "@/lib/schema";
 import { currentUser } from "@clerk/nextjs/server";
-import { eq, ilike } from "drizzle-orm";
+import { eq, ilike, and } from "drizzle-orm";
 import { inngest } from "@/lib/inngest";
 import { generateChapterContentDirect } from "@/lib/generateDirect";
 
@@ -23,13 +23,25 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
-        // Supabase DB Cache: Check if same chapter title already has generated content
-        const existingChapters = await db.select().from(chaptersTable)
-            .where(ilike(chaptersTable.chapterTitle, chapter.chapterTitle))
-            .limit(1);
+        // Supabase DB Cache: Check if same chapter title already has generated content in the SAME language
+        const existingChapters = await db.select({
+            chapterTitle: chaptersTable.chapterTitle,
+            youtubeVideoId: chaptersTable.youtubeVideoId,
+            contentMaterials: chaptersTable.contentMaterials,
+            videoContent: chaptersTable.videoContent
+        })
+        .from(chaptersTable)
+        .innerJoin(courseTable, eq(chaptersTable.courseId, courseTable.courseId))
+        .where(
+            and(
+                ilike(chaptersTable.chapterTitle, chapter.chapterTitle),
+                eq(courseTable.language, courseRow[0].language)
+            )
+        )
+        .limit(1);
 
         if (existingChapters.length > 0 && existingChapters[0].youtubeVideoId) {
-            console.log("[CACHE HIT] Using existing YouTube video for chapter:", chapter.chapterTitle);
+            console.log("[CACHE HIT] Using existing YouTube video for chapter:", chapter.chapterTitle, "in language:", courseRow[0].language);
             const cachedChapter = existingChapters[0];
             const newChapterId = `${courseId}-${chapter.chapterId}`;
 
@@ -39,6 +51,7 @@ export async function POST(req: NextRequest) {
                 chapterTitle: cachedChapter.chapterTitle,
                 youtubeVideoId: cachedChapter.youtubeVideoId,
                 contentMaterials: cachedChapter.contentMaterials,
+                videoContent: cachedChapter.videoContent || { subContent: chapter.subContent || [] },
                 createdAt: new Date(),
                 updatedAt: new Date(),
             });

@@ -181,7 +181,10 @@ function Hero() {
                     <SelectContent className="wobbly-border p-1 bg-white" position="popper">
                       <SelectItem value="English">English</SelectItem>
                       <SelectItem value="Hindi">Hindi</SelectItem>
+                      <SelectItem value="Hinglish">Hinglish</SelectItem>
                       <SelectItem value="Spanish">Spanish</SelectItem>
+                      <SelectItem value="French">French</SelectItem>
+                      <SelectItem value="German">German</SelectItem>
                       <SelectItem value="Japanese">Japanese</SelectItem>
                     </SelectContent>
                   </Select>

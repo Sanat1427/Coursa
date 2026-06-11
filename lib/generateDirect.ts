@@ -16,10 +16,10 @@ export async function generateChapterContentDirect({
 }) {
     console.log("[DIRECT GEN] Starting video content generation for chapter:", chapter.chapterTitle);
     const newChapterId = `${courseId}-${chapter.chapterId}`;
-    const optimizedQuery = chapter.youtubeQuery || `${courseName || ''} ${chapter.chapterTitle} tutorial`;
-
     // 1. Fetch YouTube Video with validation
-    const youtubeVideoId = await fetchValidatedYouTubeVideo(optimizedQuery, chapter.chapterTitle);
+    const videoResult = await fetchValidatedYouTubeVideo(chapter, language || 'English', courseName);
+    const youtubeVideoId = typeof videoResult === "string" ? videoResult : (videoResult?.videoId || null);
+    const videoMetadata = typeof videoResult === "string" ? {} : (videoResult || {});
 
     // 2. Fetch Study Materials via Google Search API
     const query = chapter.webSearchQuery || `${courseName || ''} ${chapter.chapterTitle}`;
@@ -33,6 +33,13 @@ export async function generateChapterContentDirect({
             chapterTitle: chapter.chapterTitle || '',
             youtubeVideoId: youtubeVideoId,
             contentMaterials: { articles },
+            videoContent: {
+                subContent: chapter.subContent || [],
+                videoLanguage: videoMetadata.videoLanguage || "English",
+                isFallback: videoMetadata.isFallback || false,
+                fallbackMessage: videoMetadata.fallbackMessage || "",
+                alternativeVideos: videoMetadata.alternativeVideos || []
+            },
             createdAt: new Date(),
             updatedAt: new Date(),
         });

@@ -17,9 +17,12 @@ export const generateVideoContentJob = inngest.createFunction(
         const optimizedQuery = chapter.youtubeQuery || `${courseName || ''} ${chapter.chapterTitle} tutorial`;
 
         // Step 2: Fetch relevant YouTube Video using validation
-        const youtubeVideoId = await step.run("fetch-youtube-video", async () => {
-            return await fetchValidatedYouTubeVideo(optimizedQuery, chapter.chapterTitle);
+        const videoResult = await step.run("fetch-youtube-video", async () => {
+            return await fetchValidatedYouTubeVideo(chapter, language || 'English', courseName);
         });
+
+        const youtubeVideoId = typeof videoResult === "string" ? videoResult : (videoResult?.videoId || null);
+        const videoMetadata = typeof videoResult === "string" ? {} : (videoResult || {});
 
         // Step 3: Fetch Study Materials via Google Search API
         const materials = await step.run("generate-chapter-materials", async () => {
@@ -36,6 +39,13 @@ export const generateVideoContentJob = inngest.createFunction(
                 chapterTitle: chapter.chapterTitle || '',
                 youtubeVideoId: youtubeVideoId,
                 contentMaterials: materials,
+                videoContent: {
+                    subContent: chapter.subContent || [],
+                    videoLanguage: videoMetadata.videoLanguage || "English",
+                    isFallback: videoMetadata.isFallback || false,
+                    fallbackMessage: videoMetadata.fallbackMessage || "",
+                    alternativeVideos: videoMetadata.alternativeVideos || []
+                },
                 createdAt: new Date(),
                 updatedAt: new Date(),
             });

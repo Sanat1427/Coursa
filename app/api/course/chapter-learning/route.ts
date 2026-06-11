@@ -51,13 +51,25 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json({ error: "Chapter not found in course layout" }, { status: 404 });
             }
 
-            // Attempt to fetch cached content from another course's chapter with the same title
-            const cachedChapters = await db.select().from(chaptersTable)
-                .where(ilike(chaptersTable.chapterTitle, chapterFromLayout.chapterTitle))
-                .limit(1);
+            // Attempt to fetch cached content from another course's chapter with the same title and same language
+            const cachedChapters = await db.select({
+                chapterTitle: chaptersTable.chapterTitle,
+                youtubeVideoId: chaptersTable.youtubeVideoId,
+                contentMaterials: chaptersTable.contentMaterials,
+                videoContent: chaptersTable.videoContent
+            })
+            .from(chaptersTable)
+            .innerJoin(courseTable, eq(chaptersTable.courseId, courseTable.courseId))
+            .where(
+                and(
+                    ilike(chaptersTable.chapterTitle, chapterFromLayout.chapterTitle),
+                    eq(courseTable.language, courseRow.language)
+                )
+            )
+            .limit(1);
 
             if (cachedChapters.length > 0 && cachedChapters[0].youtubeVideoId) {
-                console.log("[CACHE HIT] Reusing existing chapter content for:", chapterFromLayout.chapterTitle);
+                console.log("[CACHE HIT] Reusing existing chapter content for:", chapterFromLayout.chapterTitle, "in language:", courseRow.language);
                 const cached = cachedChapters[0];
                 const inserted = await db.insert(chaptersTable).values({
                     courseId,
@@ -65,19 +77,21 @@ export async function GET(req: NextRequest) {
                     chapterTitle: cached.chapterTitle,
                     youtubeVideoId: cached.youtubeVideoId,
                     contentMaterials: cached.contentMaterials,
-                    videoContent: { subContent: chapterFromLayout.subContent || [] }
+                    videoContent: cached.videoContent || { subContent: chapterFromLayout.subContent || [] }
                 }).returning();
                 chapterRow = inserted[0];
             } else {
                 console.log("[GENERATING] Running YouTube and Google Custom Search APIs for:", chapterFromLayout.chapterTitle);
-                const optimizedQuery = chapterFromLayout.youtubeQuery || `${courseRow.courseName} ${chapterFromLayout.chapterTitle} tutorial`;
                 const searchQuery = chapterFromLayout.webSearchQuery || `${courseRow.courseName} ${chapterFromLayout.chapterTitle}`;
                 
                 // Run YouTube + Google Search in PARALLEL instead of sequentially
-                const [youtubeVideoId, articles] = await Promise.all([
-                    fetchValidatedYouTubeVideo(optimizedQuery, chapterFromLayout.chapterTitle),
+                const [videoResult, articles] = await Promise.all([
+                    fetchValidatedYouTubeVideo(chapterFromLayout, courseRow.language, courseRow.courseName),
                     fetchGoogleSearchMaterials(searchQuery)
                 ]);
+
+                const youtubeVideoId = typeof videoResult === "string" ? videoResult : (videoResult?.videoId || null);
+                const videoMetadata = typeof videoResult === "string" ? {} : (videoResult || {});
 
                 const materials = { articles };
 
@@ -87,7 +101,13 @@ export async function GET(req: NextRequest) {
                     chapterTitle: chapterFromLayout.chapterTitle,
                     youtubeVideoId: youtubeVideoId,
                     contentMaterials: materials,
-                    videoContent: { subContent: chapterFromLayout.subContent || [] }
+                    videoContent: { 
+                        subContent: chapterFromLayout.subContent || [],
+                        videoLanguage: videoMetadata.videoLanguage || "English",
+                        isFallback: videoMetadata.isFallback || false,
+                        fallbackMessage: videoMetadata.fallbackMessage || "",
+                        alternativeVideos: videoMetadata.alternativeVideos || []
+                    }
                 }).returning();
                 chapterRow = inserted[0];
             }
@@ -211,9 +231,19 @@ Return the response ONLY as a valid JSON object matching the schema:
 
         const currentActiveSchedule = schedules.find(s => s.status === "PENDING" || s.status === "MISSED") || schedules[schedules.length - 1] || null;
 
+        const videoContent = (chapterRow.videoContent as any) || {};
+        const videoLanguage = videoContent.videoLanguage || "English";
+        const isFallback = videoContent.isFallback || false;
+        const fallbackMessage = videoContent.fallbackMessage || "";
+        const alternativeVideos = videoContent.alternativeVideos || [];
+
         return NextResponse.json({
             youtubeVideoId: chapterRow.youtubeVideoId || null,
             chapterTitle: chapterRow.chapterTitle,
+            videoLanguage,
+            isFallback,
+            fallbackMessage,
+            alternativeVideos,
             summary,
             workedExamples,
             concepts: chapterConcepts,
