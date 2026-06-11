@@ -6,8 +6,7 @@ import { fetchValidatedYouTubeVideo } from "@/lib/youtube";
 import { fetchGoogleSearchMaterials } from "@/lib/googleSearch";
 
 export const generateVideoContentJob = inngest.createFunction(
-    { id: "generate-video-content" },
-    { event: "video/generate" },
+    { id: "generate-video-content", triggers: [{ event: "video/generate" }] },
     async ({ event, step }) => {
         const { chapter, courseId, courseName, language } = event.data;
 

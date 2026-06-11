@@ -507,7 +507,7 @@ Coursa uses a modern, robust, and type-safe technology stack. The selected techn
 | **Authentication Service** | Clerk Auth | `6.38.1` | Scalable session management, support for multi-locale settings, and secure webhook sync integration. |
 | **AI Models Provider** | Google GenAI SDK | `1.43.0` | Fast generation speeds with `gemini-2.5-flash` at a cost-efficient price point. |
 | **Groq Fallback Router** | Groq SDK | `1.2.1` | Zero-cold-start inference with `llama-3.3-70b-versatile` to handle Gemini rate limits. |
-| **Asynchronous Jobs Queue**| Inngest Queue | `3.52.6` | Serverless-compatible, event-driven architecture that eliminates the need for separate worker servers. |
+| **Asynchronous Jobs Queue**| Inngest Queue | `4.5.1` | Serverless-compatible, event-driven architecture that eliminates the need for separate worker servers. |
 | **File Storage Bucket** | Supabase Storage | `2.39.0` | S3-compatible, cost-effective asset uploads with row-level security (RLS). |
 
 ---
