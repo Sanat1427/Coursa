@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { recommendationEventsTable } from "@/lib/schema";
 import { currentUser } from "@clerk/nextjs/server";
+import { and, eq } from "drizzle-orm";
+import { revalidateTag } from "next/cache";
 
 export async function POST(req: NextRequest) {
     try {
@@ -25,12 +27,33 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Invalid eventType value" }, { status: 400 });
         }
 
+        // Prevent duplicate recommendation tracking requests (same user, course, and eventType)
+        const existingEvent = await db.select().from(recommendationEventsTable)
+            .where(
+                and(
+                    eq(recommendationEventsTable.userId, safeUserEmail),
+                    eq(recommendationEventsTable.recommendedCourseId, recommendedCourseId),
+                    eq(recommendationEventsTable.eventType, eventType)
+                )
+            )
+            .limit(1);
+
+        if (existingEvent.length > 0) {
+            return NextResponse.json({ success: true, event: existingEvent[0], message: "Duplicate event skipped" });
+        }
+
         const loggedEvent = await db.insert(recommendationEventsTable).values({
             userId: safeUserEmail,
             recommendedCourseId,
             eventType,
             clickedAt: new Date()
         }).returning();
+
+        try {
+            revalidateTag("recommendations", "max");
+        } catch (err) {
+            console.warn("revalidateTag failed in POST /api/recommendations/event:", err);
+        }
 
         return NextResponse.json({ success: true, event: loggedEvent[0] });
     } catch (e: any) {

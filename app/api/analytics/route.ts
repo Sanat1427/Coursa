@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { courseTable, userProgressTable, quizAttemptsTable, quizzesTable, notesTable, chaptersTable } from "@/lib/schema";
 import { currentUser } from "@clerk/nextjs/server";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import moment from "moment";
 
@@ -73,20 +73,25 @@ async function fetchAnalyticsData(userId: string) {
         .sort((a, b) => b.views - a.views)
         .slice(0, 5);
 
-    const topChapters = await Promise.all(
-        topViews.map(async (p) => {
-            const ch = await db.select({ title: chaptersTable.chapterTitle })
-                .from(chaptersTable)
-                .where(eq(chaptersTable.chapterId, p.chapterId))
-                .limit(1);
-            return {
-                chapterId: p.chapterId,
-                chapterTitle: ch[0]?.title || "Unknown Lesson",
-                views: p.views,
-                status: p.status,
-            };
+    const topChapterIds = topViews.map(v => v.chapterId);
+    let topChapters: any[] = [];
+    if (topChapterIds.length > 0) {
+        const chaptersList = await db.select({
+            chapterId: chaptersTable.chapterId,
+            chapterTitle: chaptersTable.chapterTitle
         })
-    );
+        .from(chaptersTable)
+        .where(inArray(chaptersTable.chapterId, topChapterIds));
+
+        const chapterTitleMap = new Map(chaptersList.map(c => [c.chapterId, c.chapterTitle]));
+        
+        topChapters = topViews.map(p => ({
+            chapterId: p.chapterId,
+            chapterTitle: chapterTitleMap.get(p.chapterId) || "Unknown Lesson",
+            views: p.views,
+            status: p.status,
+        }));
+    }
 
     // Calculate Activity Aggregations (Completions + Quizzes + Notes Updates)
     const dailyActivity = [];

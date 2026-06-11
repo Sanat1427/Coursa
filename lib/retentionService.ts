@@ -815,13 +815,22 @@ Return the result as a raw JSON array of objects with the exact schema:
    * Calculates Course Evolution Status (Locked, In Progress, Completed) based on concept prerequisites.
    */
   async getCourseEvolution(userId: string) {
-    const [userCourses, allProgress, readiness, chapters, chapterConcepts] = await Promise.all([
-      db.select().from(courseTable).where(eq(courseTable.userId, userId)),
+    const userCourses = await db.select().from(courseTable).where(eq(courseTable.userId, userId));
+    if (userCourses.length === 0) return [];
+
+    const courseIds = userCourses.map(c => c.courseId);
+
+    const [allProgress, readiness, chapters] = await Promise.all([
       db.select().from(userProgressTable).where(eq(userProgressTable.userId, userId)),
       this.getConceptReadiness(userId),
-      db.select().from(chaptersTable),
-      db.select().from(chapterConceptsTable)
+      db.select().from(chaptersTable).where(inArray(chaptersTable.courseId, courseIds))
     ]);
+
+    const chapterIds = chapters.map(ch => ch.chapterId);
+    let chapterConcepts: any[] = [];
+    if (chapterIds.length > 0) {
+      chapterConcepts = await db.select().from(chapterConceptsTable).where(inArray(chapterConceptsTable.chapterId, chapterIds));
+    }
 
     const masteryMap = new Map(readiness.concepts.map(c => [c.id, c.masteryScore]));
 

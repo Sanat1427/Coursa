@@ -10,7 +10,12 @@ const globalForDb = globalThis as unknown as {
     __drizzleDB: ReturnType<typeof drizzle> | undefined;
 };
 
-const queryClient = globalForDb.__postgresClient ?? postgres(process.env.DATABASE_URL, { prepare: false, max: 10 });
+const queryClient = globalForDb.__postgresClient ?? postgres(process.env.DATABASE_URL, { 
+    prepare: false, 
+    max: 1,
+    idle_timeout: 20,
+    connect_timeout: 10
+});
 globalForDb.__postgresClient = queryClient;
 
 export const db = globalForDb.__drizzleDB ?? drizzle(queryClient);

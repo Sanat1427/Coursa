@@ -34,13 +34,35 @@ export default function RecommendationsList() {
                 
             setRecommendations(recList.slice(0, 4));
 
-            // Log VIEWED events for the rendered recommendations
+            // Log VIEWED events for the rendered recommendations without duplicate tracking
             if (recList.length > 0) {
+                const sessionUserId = user?.id || "anonymous";
+                const viewedKey = `viewed-courses-${sessionUserId}`;
+                let viewedCourses: string[] = [];
+                try {
+                    viewedCourses = JSON.parse(sessionStorage.getItem(viewedKey) || "[]");
+                } catch (err) {
+                    viewedCourses = [];
+                }
+                const viewedSet = new Set(viewedCourses);
+
                 recList.slice(0, 4).forEach((rec: any) => {
-                    axios.post("/api/recommendations/event", {
-                        recommendedCourseId: rec.course.courseId,
-                        eventType: "VIEWED"
-                    }).catch(err => console.error("Failed to log VIEWED event:", err));
+                    const cid = rec.course.courseId;
+                    if (!viewedSet.has(cid)) {
+                        viewedSet.add(cid);
+                        axios.post("/api/recommendations/event", {
+                            recommendedCourseId: cid,
+                            eventType: "VIEWED"
+                        })
+                        .then(() => {
+                            try {
+                                sessionStorage.setItem(viewedKey, JSON.stringify(Array.from(viewedSet)));
+                            } catch (err) {
+                                console.error(err);
+                            }
+                        })
+                        .catch(err => console.error("Failed to log VIEWED event:", err));
+                    }
                 });
             }
         } catch (e) {

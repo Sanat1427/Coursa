@@ -4,6 +4,7 @@ import { userProgressTable, courseTable, courseCompletionTable } from "@/lib/sch
 import { currentUser } from "@clerk/nextjs/server";
 import { and, eq } from "drizzle-orm";
 import { RetentionService } from "@/lib/retentionService";
+import { revalidateTag } from "next/cache";
 
 export async function POST(req: NextRequest) {
     try {
@@ -121,6 +122,11 @@ export async function POST(req: NextRequest) {
                                     courseId,
                                     completedAt: new Date()
                                 });
+                                try {
+                                    revalidateTag("recommendations", "max");
+                                } catch (err) {
+                                    console.warn("revalidateTag failed in progress route:", err);
+                                }
                                 console.log(`Course completed: user=${safeUserEmail}, course=${courseId}`);
                             }
                         }

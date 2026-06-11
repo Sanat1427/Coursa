@@ -19,7 +19,7 @@ const getCachedRecommendations = unstable_cache(
     },
     ["user-recommendations"],
     {
-        revalidate: 30, // 30 seconds cache
+        revalidate: 300, // 5 minutes cache
         tags: ["recommendations"]
     }
 );

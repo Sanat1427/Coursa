@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { courseTable, userProgressTable, chaptersTable, revisionScheduleTable } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { currentUser } from "@clerk/nextjs/server";
 import { RetentionService } from "@/lib/retentionService";
 
@@ -17,17 +17,26 @@ export async function GET(req: NextRequest) {
         const readiness = await RetentionService.getConceptReadiness(safeUserEmail);
 
         // Fetch user courses, progress, chapters, and schedules
-        const [userCourses, allProgress, allChapters, allSchedules] = await Promise.all([
-            db.select().from(courseTable).where(eq(courseTable.userId, safeUserEmail)),
-            db.select().from(userProgressTable).where(eq(userProgressTable.userId, safeUserEmail)),
-            db.select().from(chaptersTable),
-            db.select().from(revisionScheduleTable).where(
-                and(
-                    eq(revisionScheduleTable.userId, safeUserEmail),
-                    eq(revisionScheduleTable.status, 'PENDING')
+        const userCourses = await db.select().from(courseTable).where(eq(courseTable.userId, safeUserEmail));
+        const courseIds = userCourses.map(c => c.courseId);
+
+        let allProgress: any[] = [];
+        let allChapters: any[] = [];
+        let allSchedules: any[] = [];
+
+        if (courseIds.length > 0) {
+            [allProgress, allChapters, allSchedules] = await Promise.all([
+                db.select().from(userProgressTable).where(eq(userProgressTable.userId, safeUserEmail)),
+                db.select().from(chaptersTable).where(inArray(chaptersTable.courseId, courseIds)),
+                db.select().from(revisionScheduleTable).where(
+                    and(
+                        eq(revisionScheduleTable.userId, safeUserEmail),
+                        eq(revisionScheduleTable.status, 'PENDING'),
+                        inArray(revisionScheduleTable.courseId, courseIds)
+                    )
                 )
-            )
-        ]);
+            ]);
+        }
 
         const activeCourses = userCourses.map(course => {
             const courseChapters = (course.courseLayout as any)?.chapters || [];
