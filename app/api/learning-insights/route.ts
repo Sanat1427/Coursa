@@ -1,0 +1,166 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { courseTable, userProgressTable, chaptersTable, revisionScheduleTable } from "@/lib/schema";
+import { eq, and } from "drizzle-orm";
+import { currentUser } from "@clerk/nextjs/server";
+import { RetentionService } from "@/lib/retentionService";
+
+export async function GET(req: NextRequest) {
+    try {
+        const user = await currentUser();
+        const safeUserEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || '';
+        if (!safeUserEmail) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        // Get readiness data
+        const readiness = await RetentionService.getConceptReadiness(safeUserEmail);
+
+        // Fetch user courses, progress, chapters, and schedules
+        const [userCourses, allProgress, allChapters, allSchedules] = await Promise.all([
+            db.select().from(courseTable).where(eq(courseTable.userId, safeUserEmail)),
+            db.select().from(userProgressTable).where(eq(userProgressTable.userId, safeUserEmail)),
+            db.select().from(chaptersTable),
+            db.select().from(revisionScheduleTable).where(
+                and(
+                    eq(revisionScheduleTable.userId, safeUserEmail),
+                    eq(revisionScheduleTable.status, 'PENDING')
+                )
+            )
+        ]);
+
+        const activeCourses = userCourses.map(course => {
+            const courseChapters = (course.courseLayout as any)?.chapters || [];
+            const totalChapters = courseChapters.length || (course.courseLayout as any)?.totalChapters || 0;
+            
+            const completedForCourse = allProgress.filter(
+                p => p.courseId === course.courseId && p.status === 'COMPLETED'
+            );
+            
+            const progressPercentage = totalChapters > 0 
+                ? Math.round((completedForCourse.length / totalChapters) * 100) 
+                : 0;
+
+            // Find chapters in DB for this course
+            const dbChapters = allChapters.filter(ch => ch.courseId === course.courseId);
+
+            // Find first incomplete chapter from layout
+            const completedIds = new Set(completedForCourse.map(p => p.chapterId));
+            const firstIncompleteLayoutCh = courseChapters.find((ch: any) => !completedIds.has(ch.chapterId || ch.id));
+            
+            let currentChapterName = "Introduction";
+            let currentChapterId = "";
+            if (firstIncompleteLayoutCh) {
+                currentChapterId = firstIncompleteLayoutCh.chapterId || firstIncompleteLayoutCh.id || "";
+                const matchedDbCh = dbChapters.find(ch => ch.chapterId === currentChapterId);
+                currentChapterName = matchedDbCh?.chapterTitle || firstIncompleteLayoutCh.chapterTitle || firstIncompleteLayoutCh.name || "Untitled Chapter";
+            } else if (dbChapters.length > 0) {
+                currentChapterName = dbChapters[0].chapterTitle;
+                currentChapterId = dbChapters[0].chapterId;
+            }
+
+            // Find next pending review date for this course
+            const courseSchedules = allSchedules
+                .filter(s => s.courseId === course.courseId)
+                .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
+            
+            let nextReviewStr = "None scheduled";
+            if (courseSchedules.length > 0) {
+                const nextSchedDate = courseSchedules[0].scheduledAt;
+                const diffTime = nextSchedDate.getTime() - Date.now();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays <= 0) {
+                    nextReviewStr = "Today";
+                } else if (diffDays === 1) {
+                    nextReviewStr = "Tomorrow";
+                } else {
+                    nextReviewStr = `In ${diffDays} days`;
+                }
+            }
+            
+            return {
+                courseId: course.courseId,
+                courseName: course.courseName,
+                description: (course.courseLayout as any)?.courseDescription || "",
+                progressPercentage,
+                totalChapters,
+                completedChapters: completedForCourse.length,
+                currentChapterName,
+                currentChapterId,
+                nextReview: nextReviewStr
+            };
+        }).filter(c => c.progressPercentage < 100); // Only show in-progress courses
+
+        // Group categories for progress stats
+        const categoryStats = new Map<string, { total: number; learned: number }>();
+        readiness.concepts.forEach(c => {
+            if (!categoryStats.has(c.category)) {
+                categoryStats.set(c.category, { total: 0, learned: 0 });
+            }
+            const stats = categoryStats.get(c.category)!;
+            stats.total += 1;
+            if (c.status === "Mastered") {
+                stats.learned += 1;
+            }
+        });
+
+        const categoryCoverage = Array.from(categoryStats.entries()).map(([name, stats]) => ({
+            name,
+            total: stats.total,
+            learned: stats.learned,
+            percentage: Math.round((stats.learned / stats.total) * 100)
+        }));
+
+        // Sort weak and strong concepts
+        const weakConcepts = readiness.concepts
+            .filter(c => c.status === "Needs Review")
+            .sort((a, b) => a.masteryScore - b.masteryScore)
+            .slice(0, 5)
+            .map(c => ({
+                id: c.id,
+                name: c.name,
+                score: c.masteryScore,
+                category: c.category
+            }));
+
+        const strongConcepts = readiness.concepts
+            .filter(c => c.status === "Mastered")
+            .sort((a, b) => b.masteryScore - a.masteryScore)
+            .slice(0, 5)
+            .map(c => ({
+                id: c.id,
+                name: c.name,
+                score: c.masteryScore,
+                category: c.category
+            }));
+
+        // Dynamic recent activity logs based on user progress & reviews
+        const recentActivity = allProgress
+            .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+            .slice(0, 5)
+            .map(p => {
+                const matchedCourse = userCourses.find(c => c.courseId === p.courseId);
+                return {
+                    id: p.id,
+                    chapterId: p.chapterId,
+                    courseName: matchedCourse?.courseName || "AI Course",
+                    status: p.status,
+                    timestamp: p.updatedAt
+                };
+            });
+
+        return NextResponse.json({
+            metrics: readiness.metrics,
+            activeCourses,
+            categoryCoverage,
+            weakConcepts,
+            strongConcepts,
+            recentActivity
+        });
+
+    } catch (e: any) {
+        console.error("GET /api/learning-insights error:", e);
+        return NextResponse.json({ error: "Internal Server Error", detail: e.message }, { status: 500 });
+    }
+}
