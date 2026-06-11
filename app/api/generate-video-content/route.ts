@@ -4,7 +4,7 @@ import { chaptersTable, courseTable } from "@/lib/schema";
 import { currentUser } from "@clerk/nextjs/server";
 import { eq, ilike } from "drizzle-orm";
 import { inngest } from "@/lib/inngest";
-import { generateChapterContentDirect } from "../inngest/functions";
+import { generateChapterContentDirect } from "@/lib/generateDirect";
 
 export const maxDuration = 60; // Allow maximum 60 seconds execution time on Vercel
 
