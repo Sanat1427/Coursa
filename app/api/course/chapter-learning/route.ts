@@ -3,13 +3,15 @@ import { db } from "@/lib/db";
 import { chaptersTable, chapterConceptsTable, conceptsTable, revisionScheduleTable, revisionQuestionsTable, courseTable, userProgressTable } from "@/lib/schema";
 import { eq, and, ilike } from "drizzle-orm";
 import { currentUser } from "@clerk/nextjs/server";
-import { RetentionService } from "@/lib/retentionService";
-import { client } from "@/lib/gemini";
-import { fetchValidatedYouTubeVideo, fetchYouTubeTranscript } from "@/lib/youtube";
+// TODO: Re-enable in future release
+// import { RetentionService } from "@/lib/retentionService";
+import { fetchValidatedYouTubeVideo } from "@/lib/youtube";
 import { fetchGoogleSearchMaterials } from "@/lib/googleSearch";
+import { inngest } from "@/lib/inngest";
 
 export async function GET(req: NextRequest) {
     try {
+        // [STEP 1] User Authenticated
         const user = await currentUser();
         if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,6 +21,7 @@ export async function GET(req: NextRequest) {
         if (!safeUserEmail) {
             return NextResponse.json({ error: "No email associated with user" }, { status: 400 });
         }
+        console.log(`[STEP 1] User Authenticated: ${safeUserEmail}`);
 
         const courseId = req.nextUrl.searchParams.get("courseId");
         const chapterId = req.nextUrl.searchParams.get("chapterId");
@@ -27,14 +30,15 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Missing courseId or chapterId" }, { status: 400 });
         }
 
-        // 1. Fetch course details
+        // [STEP 2] Course Loaded
         const courseRows = await db.select().from(courseTable).where(eq(courseTable.courseId, courseId)).limit(1);
         if (courseRows.length === 0) {
             return NextResponse.json({ error: "Course not found" }, { status: 404 });
         }
         const courseRow = courseRows[0];
+        console.log(`[STEP 2] Course Loaded: ${courseId}`);
 
-        // 2. Fetch chapter from DB
+        // [STEP 3] Chapter Loaded
         let chapterRows = await db.select().from(chaptersTable)
             .where(eq(chaptersTable.chapterId, chapterId))
             .limit(1);
@@ -43,15 +47,15 @@ export async function GET(req: NextRequest) {
 
         if (chapterRows.length === 0) {
             console.log(`[CACHE MISS] Generating initial media content for chapter: ${chapterId}`);
-            // Find chapter in course layout
-            const layoutChapters = (courseRow.courseLayout as any)?.chapters || [];
-            const chapterFromLayout = layoutChapters.find((ch: any) => `${courseId}-${ch.chapterId}` === chapterId);
+            // Find chapter in course layout safely
+            const layoutChapters = (courseRow?.courseLayout as any)?.chapters || [];
+            const chapterFromLayout = layoutChapters.find((ch: any) => `${courseId}-${ch.chapterId || ch.id}` === chapterId);
             
             if (!chapterFromLayout) {
                 return NextResponse.json({ error: "Chapter not found in course layout" }, { status: 404 });
             }
 
-            // Attempt to fetch cached content from another course's chapter with the same title and same language
+            // Attempt to fetch cached content from another chapter with same title and language
             const cachedChapters = await db.select({
                 chapterTitle: chaptersTable.chapterTitle,
                 youtubeVideoId: chaptersTable.youtubeVideoId,
@@ -69,7 +73,7 @@ export async function GET(req: NextRequest) {
             .limit(1);
 
             if (cachedChapters.length > 0 && cachedChapters[0].youtubeVideoId) {
-                console.log("[CACHE HIT] Reusing existing chapter content for:", chapterFromLayout.chapterTitle, "in language:", courseRow.language);
+                console.log("[CACHE HIT] Reusing existing chapter content for:", chapterFromLayout.chapterTitle);
                 const cached = cachedChapters[0];
                 const inserted = await db.insert(chaptersTable).values({
                     courseId,
@@ -84,7 +88,6 @@ export async function GET(req: NextRequest) {
                 console.log("[GENERATING] Running YouTube and Google Custom Search APIs for:", chapterFromLayout.chapterTitle);
                 const searchQuery = chapterFromLayout.webSearchQuery || `${courseRow.courseName} ${chapterFromLayout.chapterTitle}`;
                 
-                // Run YouTube + Google Search in PARALLEL instead of sequentially
                 const [videoResult, articles] = await Promise.all([
                     fetchValidatedYouTubeVideo(chapterFromLayout, courseRow.language, courseRow.courseName),
                     fetchGoogleSearchMaterials(searchQuery)
@@ -92,7 +95,6 @@ export async function GET(req: NextRequest) {
 
                 const youtubeVideoId = typeof videoResult === "string" ? videoResult : (videoResult?.videoId || null);
                 const videoMetadata = typeof videoResult === "string" ? {} : (videoResult || {});
-
                 const materials = { articles };
 
                 const inserted = await db.insert(chaptersTable).values({
@@ -115,6 +117,12 @@ export async function GET(req: NextRequest) {
             chapterRow = chapterRows[0];
         }
 
+        if (!chapterRow) {
+            throw new Error("Failed to retrieve or initialize chapter row.");
+        }
+        console.log(`[STEP 3] Chapter Loaded: ${chapterId}`);
+
+        // [STEP 4] Materials Loaded
         let materials = chapterRow.contentMaterials as any;
         if (typeof materials === "string") {
             try {
@@ -126,15 +134,122 @@ export async function GET(req: NextRequest) {
             materials = { articles: [] };
         }
 
-        let summary = materials.summary || "";
-        let workedExamples = materials.workedExamples || [];
+        let summary = materials?.summary || "";
+        let workedExamples = materials?.workedExamples || [];
 
-        // 3. Generate Summary and Worked Examples dynamically if missing
+        // Dynamic placeholder summary handling - NEVER block on Gemini
         if (!summary || workedExamples.length === 0) {
-            console.log(`Generating summary & worked examples for chapter: ${chapterRow.chapterTitle}`);
-            try {
-                const subContent = (chapterRow.videoContent as any)?.subContent || [];
-                const prompt = `
+            console.log(`[STEP 4] Materials Loaded (Warning: Summary missing, returning processing placeholder)`);
+            summary = "This chapter is being processed. Learning content will be available shortly.";
+            workedExamples = [
+                {
+                    title: "Processing Content...",
+                    code: "// Summary and worked examples are generating in the background.",
+                    explanation: "Please refresh the page in a few moments to view the fully parsed content."
+                }
+            ];
+        } else {
+            console.log(`[STEP 4] Materials Loaded`);
+        }
+
+        // [STEP 5] Concepts Loaded
+        // TODO: Re-enable in future release
+        /*
+        const [linkedConceptsList, existingQuestions, schedules, readiness] = await Promise.all([
+            db.select().from(chapterConceptsTable).where(eq(chapterConceptsTable.chapterId, chapterId)),
+            db.select().from(revisionQuestionsTable).where(eq(revisionQuestionsTable.chapterId, chapterId)),
+            db.select().from(revisionScheduleTable)
+                .where(
+                    and(
+                        eq(revisionScheduleTable.userId, safeUserEmail),
+                        eq(revisionScheduleTable.chapterId, chapterId)
+                    )
+                )
+                .orderBy(revisionScheduleTable.reviewNumber),
+            RetentionService.getConceptReadiness(safeUserEmail)
+        ]);
+        */
+
+        const linkedConceptsList: any[] = [];
+        const existingQuestions: any[] = [];
+        const schedules: any[] = [];
+        const readiness = { concepts: [], relationships: [] };
+
+        // Filter concepts linked to this chapter safely
+        const linkedIds = new Set((linkedConceptsList || []).map(l => l.conceptId));
+        const chapterConcepts = (readiness?.concepts || []).filter(c => linkedIds.has(c.id));
+
+        // Determine related concepts from relationships safely
+        const relatedIds = new Set<string>();
+        (readiness?.relationships || []).forEach(rel => {
+            if (rel) {
+                if (linkedIds.has(rel.sourceConceptId)) {
+                    relatedIds.add(rel.targetConceptId);
+                }
+                if (linkedIds.has(rel.targetConceptId)) {
+                    relatedIds.add(rel.sourceConceptId);
+                }
+            }
+        });
+        linkedIds.forEach(id => relatedIds.delete(id));
+        const relatedConcepts = (readiness?.concepts || []).filter(c => relatedIds.has(c.id));
+
+        const currentActiveSchedule = (schedules || []).find(s => s?.status === "PENDING" || s?.status === "MISSED") || 
+            (schedules && schedules.length > 0 ? schedules[schedules.length - 1] : null);
+
+        const videoContent = (chapterRow.videoContent as any) || {};
+        const videoLanguage = videoContent.videoLanguage || "English";
+        const isFallback = videoContent.isFallback || false;
+        const fallbackMessage = videoContent.fallbackMessage || "";
+        const alternativeVideos = videoContent.alternativeVideos || [];
+
+        console.log(`[STEP 5] Concepts Loaded`);
+
+        // Queue background processing event if any key elements are missing
+        const isDataMissing = !materials?.summary || 
+                              !materials?.workedExamples || 
+                              materials.workedExamples.length === 0;
+
+        if (isDataMissing) {
+            console.log(`[Queueing Inngest] Sending chapter/process event for chapterId: ${chapterId}`);
+            inngest.send({
+                name: "chapter/process",
+                data: {
+                    courseId,
+                    chapterId,
+                    chapterTitle: chapterRow.chapterTitle,
+                    youtubeVideoId: chapterRow.youtubeVideoId
+                }
+            }).catch(async (inngestErr) => {
+                console.error("[Queueing Inngest Error] Failed to send chapter/process event:", inngestErr);
+                
+                // Fallback for local development when Inngest dev server is not running
+                if (process.env.NODE_ENV === "development") {
+                    console.log("[Local Dev Fallback] Inngest dev server not detected/running. Executing processing job in local background thread...");
+                    
+                    try {
+                        const { client } = await import("@/lib/gemini");
+                        const { fetchYouTubeTranscript } = await import("@/lib/youtube");
+                        
+                        const runLocalFallback = async () => {
+                            try {
+                                const layout = courseRow?.courseLayout as any;
+                                const isPlaylistOrHybrid = layout && (layout.playlistId || layout.mode === 'playlist' || layout.mode === 'hybrid');
+
+                                let currentMaterials = chapterRow.contentMaterials as any;
+                                if (typeof currentMaterials === "string") {
+                                    try { currentMaterials = JSON.parse(currentMaterials); } catch { currentMaterials = { articles: [] }; }
+                                } else if (!currentMaterials) {
+                                    currentMaterials = { articles: [] };
+                                }
+
+                                let localSummary = currentMaterials.summary || "";
+                                let localExamples = currentMaterials.workedExamples || [];
+
+                                if (!localSummary || localExamples.length === 0) {
+                                    console.log(`[Local Fallback] Generating summary & examples for: ${chapterRow.chapterTitle}`);
+                                    const subContent = (chapterRow.videoContent as any)?.subContent || [];
+                                    const prompt = `
 You are an expert instructor in software engineering.
 For the chapter titled "${chapterRow.chapterTitle}" covering: ${JSON.stringify(subContent)}.
 Generate:
@@ -156,111 +271,70 @@ Return the response ONLY as a valid JSON object matching the schema:
   ]
 }
 `;
+                                    const resp = await client.models.generateContent({
+                                        model: 'gemini-2.5-flash',
+                                        contents: prompt,
+                                        config: {
+                                            responseMimeType: "application/json",
+                                            topic: chapterRow.chapterTitle,
+                                            contentType: "summary"
+                                        }
+                                    });
 
-                const resp = await client.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: prompt,
-                    config: {
-                        responseMimeType: "application/json",
+                                    const rawResult = resp.text || '';
+                                    const sanitizedResult = rawResult.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+                                    const data = JSON.parse(sanitizedResult);
+
+                                    localSummary = data.summary || "Summary generated.";
+                                    localExamples = data.workedExamples || [];
+
+                                    currentMaterials.summary = localSummary;
+                                    currentMaterials.workedExamples = localExamples;
+
+                                    await db.update(chaptersTable)
+                                        .set({ contentMaterials: currentMaterials })
+                                        .where(eq(chaptersTable.chapterId, chapterId));
+                                    console.log(`[Local Fallback] Summary & worked examples generated successfully.`);
+                                }
+
+                                let transcript: string | null = null;
+                                if (isPlaylistOrHybrid && chapterRow.youtubeVideoId) {
+                                    try {
+                                        transcript = await fetchYouTubeTranscript(chapterRow.youtubeVideoId);
+                                    } catch (err) {
+                                        console.error("[Local Fallback] fetchYouTubeTranscript failed:", err);
+                                    }
+                                }
+
+                                // TODO: Re-enable in future release
+                                /*
+                                if (isPlaylistOrHybrid && chapterRow.youtubeVideoId && transcript) {
+                                    await RetentionService.extractPlaylistConceptsAndGraph(courseId, chapterRow.youtubeVideoId, chapterId, chapterRow.chapterTitle, transcript);
+                                    await RetentionService.generateRevisionQuestions(chapterId, chapterRow.chapterTitle, transcript);
+                                    await RetentionService.extractConceptsForChapter(chapterId, chapterRow.chapterTitle, transcript);
+                                } else {
+                                    const contextText = transcript || JSON.stringify(currentMaterials);
+                                    await RetentionService.extractConceptsForChapter(chapterId, chapterRow.chapterTitle, contextText);
+                                    await RetentionService.generateRevisionQuestions(chapterId, chapterRow.chapterTitle, contextText);
+                                }
+                                */
+                                console.log("[Local Fallback] Spaced repetition / concept generation skipped (temporarily disabled)");
+                                console.log(`[Local Fallback] Success: processed all chapter data for: ${chapterRow.chapterTitle}`);
+                            } catch (fallbackErr) {
+                                console.error("[Local Fallback Job Error] Failed to process:", fallbackErr);
+                            }
+                        };
+
+                        runLocalFallback().catch(err => console.error("[Local Fallback Job Thread Error]", err));
+
+                    } catch (importErr) {
+                        console.error("[Local Fallback Import Error] Failed to load local modules:", importErr);
                     }
-                });
-
-                const rawResult = resp.text || '';
-                const sanitizedResult = rawResult.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-                const data = JSON.parse(sanitizedResult);
-
-                summary = data.summary || "Summary generation in progress...";
-                workedExamples = data.workedExamples || [];
-
-                // Update contentMaterials in DB
-                materials.summary = summary;
-                materials.workedExamples = workedExamples;
-                
-                await db.update(chaptersTable)
-                    .set({ contentMaterials: materials })
-                    .where(eq(chaptersTable.chapterId, chapterId));
-
-            } catch (err) {
-                console.error("Failed to generate summary/examples via Gemini:", err);
-                summary = `This chapter covers the core topics of ${chapterRow.chapterTitle}. Play the video to learn more.`;
-                workedExamples = [
-                    { title: "Sample Implementation", code: `// Study the concepts in this chapter.`, explanation: "Refer to video for full details." }
-                ];
-            }
+                }
+            });
         }
 
-        // 4. Fire-and-forget: Extract concepts and generate revision questions in background
-        // These are Gemini calls that can take 10-30s each — don't block the response
-        const layout = courseRow.courseLayout as any;
-        const isPlaylistOrHybrid = layout && (layout.playlistId || layout.mode === 'playlist' || layout.mode === 'hybrid');
-
-        const runBackgroundExtraction = async () => {
-            try {
-                if (isPlaylistOrHybrid && chapterRow.youtubeVideoId) {
-                    const transcript = await fetchYouTubeTranscript(chapterRow.youtubeVideoId);
-                    if (transcript) {
-                        console.log(`[Transcript Found] Running playlist extraction for ${chapterRow.chapterTitle}`);
-                        await RetentionService.extractPlaylistConceptsAndGraph(courseId, chapterRow.youtubeVideoId, chapterId, chapterRow.chapterTitle, transcript);
-                        await RetentionService.generateRevisionQuestions(chapterId, chapterRow.chapterTitle, transcript);
-                        await RetentionService.extractConceptsForChapter(chapterId, chapterRow.chapterTitle, transcript);
-                        return;
-                    }
-                    console.log(`[Transcript NOT Found] Falling back to standard summary for ${chapterRow.chapterTitle}`);
-                }
-                
-                await Promise.allSettled([
-                    RetentionService.extractConceptsForChapter(chapterId, chapterRow.chapterTitle, JSON.stringify(materials)),
-                    RetentionService.generateRevisionQuestions(chapterId, chapterRow.chapterTitle, JSON.stringify(materials))
-                ]);
-            } catch (err) {
-                console.error("[Background extraction error]:", err);
-            }
-        };
-
-        const backgroundWork = runBackgroundExtraction().catch(err => console.error("[Background] Concept/question generation failed:", err));
-
-        // 5. Fetch existing concept data and questions in PARALLEL (these are fast DB reads)
-        const [linkedConceptsList, existingQuestions, schedules, readiness] = await Promise.all([
-            db.select().from(chapterConceptsTable).where(eq(chapterConceptsTable.chapterId, chapterId)),
-            db.select().from(revisionQuestionsTable).where(eq(revisionQuestionsTable.chapterId, chapterId)),
-            db.select().from(revisionScheduleTable)
-                .where(
-                    and(
-                        eq(revisionScheduleTable.userId, safeUserEmail),
-                        eq(revisionScheduleTable.chapterId, chapterId)
-                    )
-                )
-                .orderBy(revisionScheduleTable.reviewNumber),
-            RetentionService.getConceptReadiness(safeUserEmail)
-        ]);
-
-        // Filter concepts linked to this chapter
-        const linkedIds = new Set(linkedConceptsList.map(l => l.conceptId));
-        const chapterConcepts = readiness.concepts.filter(c => linkedIds.has(c.id));
-
-        // Determine related concepts from relationships
-        const relatedIds = new Set<string>();
-        readiness.relationships.forEach(rel => {
-            if (linkedIds.has(rel.sourceConceptId)) {
-                relatedIds.add(rel.targetConceptId);
-            }
-            if (linkedIds.has(rel.targetConceptId)) {
-                relatedIds.add(rel.sourceConceptId);
-            }
-        });
-        // Remove self
-        linkedIds.forEach(id => relatedIds.delete(id));
-        const relatedConcepts = readiness.concepts.filter(c => relatedIds.has(c.id));
-
-        const currentActiveSchedule = schedules.find(s => s.status === "PENDING" || s.status === "MISSED") || schedules[schedules.length - 1] || null;
-
-        const videoContent = (chapterRow.videoContent as any) || {};
-        const videoLanguage = videoContent.videoLanguage || "English";
-        const isFallback = videoContent.isFallback || false;
-        const fallbackMessage = videoContent.fallbackMessage || "";
-        const alternativeVideos = videoContent.alternativeVideos || [];
-
-        // 6. Merged progress: Increment or create progress record and track views count inline
+        // [STEP 6] Progress Updated
         const existingProgress = await db.select().from(userProgressTable)
             .where(
                 and(
@@ -272,14 +346,16 @@ Return the response ONLY as a valid JSON object matching the schema:
             .limit(1);
 
         let progressRow;
-        if (existingProgress.length > 0) {
+        if (existingProgress && existingProgress.length > 0) {
+            const progressId = existingProgress[0]?.id;
+            const progressViews = existingProgress[0]?.views || 0;
             const updated = await db.update(userProgressTable)
                 .set({
-                    views: existingProgress[0].views + 1,
+                    views: progressViews + 1,
                     lastVisitedAt: new Date(),
                     updatedAt: new Date(),
                 })
-                .where(eq(userProgressTable.id, existingProgress[0].id))
+                .where(eq(userProgressTable.id, progressId))
                 .returning();
             progressRow = updated[0];
         } else {
@@ -298,7 +374,10 @@ Return the response ONLY as a valid JSON object matching the schema:
                 .returning();
             progressRow = inserted[0];
         }
+        console.log(`[STEP 6] Progress Updated`);
 
+        // [STEP 7] Response Sent
+        console.log(`[STEP 7] Response Sent for chapter: ${chapterId}`);
         return NextResponse.json({
             youtubeVideoId: chapterRow.youtubeVideoId || null,
             chapterTitle: chapterRow.chapterTitle,
@@ -309,8 +388,8 @@ Return the response ONLY as a valid JSON object matching the schema:
             summary,
             workedExamples,
             concepts: chapterConcepts,
-            relatedConcepts: relatedConcepts.slice(0, 5), // return max 5 related
-            recallQuestions: existingQuestions,
+            relatedConcepts: relatedConcepts.slice(0, 5),
+            recallQuestions: existingQuestions || [],
             progress: progressRow,
             revisionStatus: currentActiveSchedule ? {
                 id: currentActiveSchedule.id,
@@ -324,6 +403,9 @@ Return the response ONLY as a valid JSON object matching the schema:
 
     } catch (error: any) {
         console.error("GET /api/course/chapter-learning error:", error);
-        return NextResponse.json({ error: "Internal Server Error", detail: error.message }, { status: 500 });
+        return NextResponse.json({ 
+            error: error.message || "Internal Server Error", 
+            stack: process.env.NODE_ENV === "development" ? error.stack : undefined 
+        }, { status: 500 });
     }
 }

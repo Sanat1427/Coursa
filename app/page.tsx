@@ -70,8 +70,8 @@ export default function Page() {
       {/* 4. User generated course list (dynamic for authed users) */}
       <CourseList />
 
-      {/* 5. Personalized matching recommendations (dynamic for authed users) */}
-      <RecommendationsList />
+      {/* 5. Personalized matching recommendations (dynamic for authed users) - Temporarily Disabled */}
+      {/* <RecommendationsList /> */}
 
       {/* 6. Visual workflow steps */}
       <HowItWorks />
@@ -79,11 +79,11 @@ export default function Page() {
       {/* 7. Featured Syllabus Roadmap Tree */}
       <FeaturedRoadmap />
 
-      {/* 8. Mock Interactive Knowledge Tree graph showcase */}
-      <KnowledgeShowcase />
+      {/* 8. Mock Interactive Knowledge Tree graph showcase - Temporarily Disabled */}
+      {/* <KnowledgeShowcase /> */}
 
-      {/* 9. Memory decay & spaced repetition explanation */}
-      <RevisionShowcase />
+      {/* 9. Memory decay & spaced repetition explanation - Temporarily Disabled */}
+      {/* <RevisionShowcase /> */}
 
       {/* 10. Table comparing playlists against Coursa OS */}
       <WhyComparison />

@@ -136,6 +136,8 @@ export async function createCourseAction({
         config: {
             systemInstruction: systemPrompt,
             responseMimeType: "application/json",
+            topic: userInput,
+            contentType: "course"
         }
     });
 

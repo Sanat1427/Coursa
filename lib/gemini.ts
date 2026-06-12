@@ -731,9 +731,11 @@ function detectMetadata(contents: any, systemInstruction?: string): PromptMetada
         contentType = 'flashcard';
     } else if (textLower.includes('course name') || textLower.includes('chapters') || textLower.includes('course description') || textLower.includes('learningobjective')) {
         contentType = 'course';
+    } else if (textLower.includes('summary') || textLower.includes('workedexamples') || textLower.includes('worked examples')) {
+        contentType = 'summary';
     } else if (textLower.includes('concept') || textLower.includes('concepts') || textLower.includes('whyitmatters')) {
         contentType = 'concept';
-    } else if (textLower.includes('relationship') || textLower.includes('graph') || textLower.includes('nodes') || textLower.includes('edges')) {
+    } else if (/\b(relationship|graph|nodes|edges)\b/i.test(textLower) || (textLower.includes('relationship') && !textLower.includes('paragraphs'))) {
         contentType = 'graph';
     } else if (textLower.includes('transcript') || textLower.includes('subtitles') || textLower.includes('video transcript')) {
         contentType = 'transcript';
@@ -763,9 +765,20 @@ function detectMetadata(contents: any, systemInstruction?: string): PromptMetada
     if (topicMatch && topicMatch[1]) {
         topic = topicMatch[1].replace(/['"{}]+/g, '').trim();
     } else {
-        const cleanText = text.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (cleanText.length > 0) {
-            topic = cleanText.split(' ').slice(0, 4).join(' ');
+        // Try to find double-quoted string of length >= 3 first
+        const quotedMatch = text.match(/"([^"]{3,})"/);
+        if (quotedMatch && quotedMatch[1]) {
+            topic = quotedMatch[1].trim();
+        } else {
+            const singleQuotedMatch = text.match(/'([^']{3,})'/);
+            if (singleQuotedMatch && singleQuotedMatch[1]) {
+                topic = singleQuotedMatch[1].trim();
+            } else {
+                const cleanText = text.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+                if (cleanText.length > 0) {
+                    topic = cleanText.split(' ').slice(0, 4).join(' ');
+                }
+            }
         }
     }
     

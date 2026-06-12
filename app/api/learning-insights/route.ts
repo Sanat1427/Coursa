@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { courseTable, userProgressTable, chaptersTable, revisionScheduleTable } from "@/lib/schema";
+import { courseTable, userProgressTable, chaptersTable } from "@/lib/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { currentUser } from "@clerk/nextjs/server";
-import { RetentionService } from "@/lib/retentionService";
+// TODO: Re-enable in future release
+// import { RetentionService } from "@/lib/retentionService";
 
 export async function GET(req: NextRequest) {
     try {
@@ -13,28 +14,20 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // Get readiness data
-        const readiness = await RetentionService.getConceptReadiness(safeUserEmail);
+        // TODO: Re-enable in future release
+        // const readiness = await RetentionService.getConceptReadiness(safeUserEmail);
 
-        // Fetch user courses, progress, chapters, and schedules
+        // Fetch user courses, progress, and chapters
         const userCourses = await db.select().from(courseTable).where(eq(courseTable.userId, safeUserEmail));
         const courseIds = userCourses.map(c => c.courseId);
 
         let allProgress: any[] = [];
         let allChapters: any[] = [];
-        let allSchedules: any[] = [];
 
         if (courseIds.length > 0) {
-            [allProgress, allChapters, allSchedules] = await Promise.all([
+            [allProgress, allChapters] = await Promise.all([
                 db.select().from(userProgressTable).where(eq(userProgressTable.userId, safeUserEmail)),
-                db.select().from(chaptersTable).where(inArray(chaptersTable.courseId, courseIds)),
-                db.select().from(revisionScheduleTable).where(
-                    and(
-                        eq(revisionScheduleTable.userId, safeUserEmail),
-                        eq(revisionScheduleTable.status, 'PENDING'),
-                        inArray(revisionScheduleTable.courseId, courseIds)
-                    )
-                )
+                db.select().from(chaptersTable).where(inArray(chaptersTable.courseId, courseIds))
             ]);
         }
 
@@ -68,25 +61,7 @@ export async function GET(req: NextRequest) {
                 currentChapterId = dbChapters[0].chapterId;
             }
 
-            // Find next pending review date for this course
-            const courseSchedules = allSchedules
-                .filter(s => s.courseId === course.courseId)
-                .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
-            
             let nextReviewStr = "None scheduled";
-            if (courseSchedules.length > 0) {
-                const nextSchedDate = courseSchedules[0].scheduledAt;
-                const diffTime = nextSchedDate.getTime() - Date.now();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                
-                if (diffDays <= 0) {
-                    nextReviewStr = "Today";
-                } else if (diffDays === 1) {
-                    nextReviewStr = "Tomorrow";
-                } else {
-                    nextReviewStr = `In ${diffDays} days`;
-                }
-            }
             
             return {
                 courseId: course.courseId,
@@ -100,49 +75,6 @@ export async function GET(req: NextRequest) {
                 nextReview: nextReviewStr
             };
         }).filter(c => c.progressPercentage < 100); // Only show in-progress courses
-
-        // Group categories for progress stats
-        const categoryStats = new Map<string, { total: number; learned: number }>();
-        readiness.concepts.forEach(c => {
-            if (!categoryStats.has(c.category)) {
-                categoryStats.set(c.category, { total: 0, learned: 0 });
-            }
-            const stats = categoryStats.get(c.category)!;
-            stats.total += 1;
-            if (c.status === "Mastered") {
-                stats.learned += 1;
-            }
-        });
-
-        const categoryCoverage = Array.from(categoryStats.entries()).map(([name, stats]) => ({
-            name,
-            total: stats.total,
-            learned: stats.learned,
-            percentage: Math.round((stats.learned / stats.total) * 100)
-        }));
-
-        // Sort weak and strong concepts
-        const weakConcepts = readiness.concepts
-            .filter(c => c.status === "Needs Review")
-            .sort((a, b) => a.masteryScore - b.masteryScore)
-            .slice(0, 5)
-            .map(c => ({
-                id: c.id,
-                name: c.name,
-                score: c.masteryScore,
-                category: c.category
-            }));
-
-        const strongConcepts = readiness.concepts
-            .filter(c => c.status === "Mastered")
-            .sort((a, b) => b.masteryScore - a.masteryScore)
-            .slice(0, 5)
-            .map(c => ({
-                id: c.id,
-                name: c.name,
-                score: c.masteryScore,
-                category: c.category
-            }));
 
         // Dynamic recent activity logs based on user progress & reviews
         const recentActivity = allProgress
@@ -160,11 +92,11 @@ export async function GET(req: NextRequest) {
             });
 
         return NextResponse.json({
-            metrics: readiness.metrics,
+            metrics: { totalConcepts: 0, masteredConcepts: 0, coveragePercentage: 0, pendingReviews: 0, streakDays: 3 },
             activeCourses,
-            categoryCoverage,
-            weakConcepts,
-            strongConcepts,
+            categoryCoverage: [],
+            weakConcepts: [],
+            strongConcepts: [],
             recentActivity
         });
 

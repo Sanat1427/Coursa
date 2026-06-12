@@ -211,6 +211,8 @@ Return ONLY a valid JSON object matching the schema:
         contents: prompt,
         config: {
           responseMimeType: "application/json",
+          topic: title,
+          contentType: "concept"
         }
       });
 
@@ -381,6 +383,8 @@ Return the result as a raw JSON array of objects with the exact schema:
         contents: prompt,
         config: {
           responseMimeType: "application/json",
+          topic: title,
+          contentType: "quiz"
         }
       });
 
@@ -953,6 +957,8 @@ Return ONLY a valid JSON object matching the schema:
         contents: prompt,
         config: {
           responseMimeType: "application/json",
+          topic: chapterTitle,
+          contentType: "graph"
         }
       });
 

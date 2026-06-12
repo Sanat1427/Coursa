@@ -93,6 +93,8 @@ Ensure the questions are accurate, directly related to the key topics, and offer
             contents: systemPrompt,
             config: {
                 responseMimeType: "application/json",
+                topic: chapterTitle,
+                contentType: "quiz"
             }
         });
 

@@ -105,8 +105,6 @@ function Hero() {
             {user && (
               <>
                 <Link className="font-display text-lg wavy-hover cursor-pointer transition-all" href="/notes">My Notes</Link>
-                <Link className="font-display text-lg wavy-hover cursor-pointer transition-all" href="/analytics">Analytics</Link>
-                <Link className="font-display text-lg wavy-hover cursor-pointer transition-all text-sketch-primary font-bold" href="/revision">Retention 🧠</Link>
               </>
             )}
           </nav>

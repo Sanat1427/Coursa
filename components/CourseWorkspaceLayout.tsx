@@ -444,8 +444,8 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
                                         </div>
                                     )}
 
-                                    {/* 4. Revision Schedule Status */}
-                                    {workspaceData.revisionStatus && (
+                                    {/* TODO: Re-enable in future release */}
+                                    {/* {workspaceData.revisionStatus && (
                                         <div className="p-4 bg-purple-50/30 wobbly-border border-dashed border border-purple-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-sans text-xs">
                                             <div className="flex items-center gap-2.5">
                                                 <Calendar className="w-4 h-4 text-sketch-primary shrink-0" />
@@ -465,10 +465,10 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
                                                 {workspaceData.revisionStatus.status}
                                             </span>
                                         </div>
-                                    )}
+                                    )} */}
 
-                                    {/* 5. Quick Recall Questions (Inline Spaced Repetition) */}
-                                    {workspaceData.recallQuestions && workspaceData.recallQuestions.length > 0 && (
+                                    {/* TODO: Re-enable in future release */}
+                                    {/* {workspaceData.recallQuestions && workspaceData.recallQuestions.length > 0 && (
                                         <div className="p-6 bg-slate-50/50 wobbly-border border-2 border-dashed border-slate-300 flex flex-col gap-4 relative">
                                             <div className="flex items-center justify-between">
                                                 <h3 className="font-display text-lg font-black text-slate-800 flex items-center gap-2">
@@ -480,7 +480,6 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
                                                 </span>
                                             </div>
 
-                                            {/* Flashcard container */}
                                             <div className="min-h-[160px] bg-white wobbly-border p-6 flex flex-col justify-between relative shadow-sm border border-slate-200 overflow-hidden">
                                                 <div className="flex-1 flex flex-col justify-center">
                                                     {!isFlipped ? (
@@ -534,7 +533,7 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
+                                    )} */}
 
                                     {/* 6. Notes Panel */}
                                     <div className="border-t-2 border-dashed border-slate-100 pt-6">
@@ -558,8 +557,8 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
                                         />
                                     </div>
 
-                                    {/* 8. Related Concepts */}
-                                    {workspaceData.relatedConcepts && workspaceData.relatedConcepts.length > 0 && (
+                                    {/* TODO: Re-enable in future release */}
+                                    {/* {workspaceData.relatedConcepts && workspaceData.relatedConcepts.length > 0 && (
                                         <div className="flex flex-col gap-3 pt-6 border-t-2 border-dashed border-slate-100">
                                             <h4 className="font-display text-sm font-bold text-slate-500 pl-1 uppercase tracking-wider">
                                                 🌳 Related Concepts to Explore
@@ -579,7 +578,7 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
                                                 ))}
                                             </div>
                                         </div>
-                                    )}
+                                    )} */}
 
                                     {/* 9. Chapter Tracker */}
                                     <div className="pt-6 border-t-2 border-dashed border-slate-100">

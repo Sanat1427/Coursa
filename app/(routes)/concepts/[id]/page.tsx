@@ -20,9 +20,9 @@ export default async function ConceptExplorerPage({ params }: PageProps) {
         return (
             <div className="w-full min-h-screen flex flex-col items-center justify-center gap-3 bg-[#faf8f5] p-6 text-center">
                 <h2 className="font-display text-2xl font-bold text-slate-800">Concept Map Not Found</h2>
-                <Link href="/revision">
+                <Link href="/">
                     <button className="px-4 py-2 bg-black text-white wobbly-border hard-shadow-sm font-display text-sm cursor-pointer">
-                        Back to Revision Canvas
+                        Back to Dashboard
                     </button>
                 </Link>
             </div>
@@ -82,7 +82,7 @@ export default async function ConceptExplorerPage({ params }: PageProps) {
         <div className="flex flex-col items-center dot-pattern min-h-screen py-10 px-4 md:px-10 bg-[#faf8f5] w-full">
             {/* Header Navigation */}
             <div className="w-full max-w-4xl mb-8 flex items-center justify-between">
-                <Link href="/revision">
+                <Link href="/">
                     <button className="flex items-center gap-2 px-4 py-2 bg-white wobbly-border hard-shadow-sm font-display text-lg hover:bg-sketch-yellow/10 hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all cursor-pointer">
                         <ChevronLeft className="w-5 h-5" />
                         Back to Dashboard
