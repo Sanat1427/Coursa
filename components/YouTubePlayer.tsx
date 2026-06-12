@@ -1,5 +1,6 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { Play } from "lucide-react";
 
 type Props = {
     videoId: string;
@@ -7,10 +8,13 @@ type Props = {
 };
 
 export default function YouTubePlayer({ videoId, onPlayerReady }: Props) {
+    const [isLoaded, setIsLoaded] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<any>(null);
 
     useEffect(() => {
+        if (!isLoaded) return;
+
         let player: any = null;
         let isMounted = true;
 
@@ -28,7 +32,7 @@ export default function YouTubePlayer({ videoId, onPlayerReady }: Props) {
                 width: "100%",
                 videoId: videoId,
                 playerVars: {
-                    autoplay: 0,
+                    autoplay: 1,
                     rel: 0,
                     modestbranding: 1,
                 },
@@ -71,9 +75,28 @@ export default function YouTubePlayer({ videoId, onPlayerReady }: Props) {
                 player.destroy();
             }
         };
-    }, [videoId]);
+    }, [videoId, isLoaded]);
+
+    if (!isLoaded) {
+        return (
+            <div 
+                className="relative w-full h-full cursor-pointer group flex items-center justify-center overflow-hidden bg-cover bg-center"
+                style={{ backgroundImage: `url(https://img.youtube.com/vi/${videoId}/hqdefault.jpg)` }}
+                onClick={() => setIsLoaded(true)}
+            >
+                {/* Dark overlay */}
+                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors duration-300 animate-fade-in" />
+                
+                {/* Wobbly play button container */}
+                <div className="relative z-10 w-16 h-16 bg-sketch-primary hover:bg-black border-2 border-black rounded-full flex items-center justify-center hard-shadow hover:scale-105 transition-all duration-300">
+                    <Play className="w-8 h-8 text-white fill-white translate-x-0.5" />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div ref={containerRef} className="w-full h-full" />
     );
 }
+

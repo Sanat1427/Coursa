@@ -279,3 +279,102 @@ export const chapterConceptsTable = pgTable("chapter_concepts", {
   chapterIdx: index("chapter_concepts_chapter_idx").on(table.chapterId),
   conceptIdx: index("chapter_concepts_concept_idx").on(table.conceptId),
 }));
+
+// Playlists Metadata Table
+export const playlistsTable = pgTable("playlists", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  playlistId: varchar("playlistId", { length: 255 }).notNull().unique(),
+  playlistTitle: varchar("playlistTitle", { length: 255 }).notNull(),
+  playlistDescription: text("playlistDescription"),
+  channelName: varchar("channelName", { length: 255 }),
+  videoCount: integer("videoCount").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+// Playlist Videos Table
+export const playlistVideosTable = pgTable("playlist_videos", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  playlistId: varchar("playlistId", { length: 255 }).notNull().references(() => playlistsTable.playlistId, { onDelete: "cascade" }),
+  videoId: varchar("videoId", { length: 255 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  thumbnail: varchar("thumbnail", { length: 1024 }),
+  duration: integer("duration").default(0), // in seconds
+  position: integer("position").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// Playlist Concepts Table
+export const playlistConceptsTable = pgTable("playlist_concepts", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  courseId: varchar("courseId", { length: 255 }).notNull().references(() => courseTable.courseId, { onDelete: "cascade" }),
+  concept: varchar("concept", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  sourceVideoId: varchar("sourceVideoId", { length: 255 }),
+  confidence: doublePrecision("confidence").default(1.0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// Playlist Graph Nodes Table
+export const playlistGraphNodesTable = pgTable("playlist_graph_nodes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  courseId: varchar("courseId", { length: 255 }).notNull().references(() => courseTable.courseId, { onDelete: "cascade" }),
+  conceptId: varchar("conceptId", { length: 255 }).notNull(),
+  label: varchar("label", { length: 255 }).notNull(),
+  x: doublePrecision("x"),
+  y: doublePrecision("y"),
+});
+
+// Playlist Graph Edges Table
+export const playlistGraphEdgesTable = pgTable("playlist_graph_edges", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  courseId: varchar("courseId", { length: 255 }).notNull().references(() => courseTable.courseId, { onDelete: "cascade" }),
+  source: varchar("source", { length: 255 }).notNull(),
+  target: varchar("target", { length: 255 }).notNull(),
+  type: varchar("type", { length: 50 }).default('RELATED'),
+});
+
+// Playlist Flashcards Table
+export const playlistFlashcardsTable = pgTable("playlist_flashcards", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  courseId: varchar("courseId", { length: 255 }).notNull().references(() => courseTable.courseId, { onDelete: "cascade" }),
+  concept: varchar("concept", { length: 255 }).notNull(),
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  reviewSchedule: timestamp("reviewSchedule"),
+  box: integer("box").default(1),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// Playlist Progress Table
+export const playlistProgressTable = pgTable("playlist_progress", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("userId", { length: 255 }).notNull(),
+  courseId: varchar("courseId", { length: 255 }).notNull().references(() => courseTable.courseId, { onDelete: "cascade" }),
+  videoId: varchar("videoId", { length: 255 }).notNull(),
+  completed: boolean("completed").default(false).notNull(),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// AI Response Cache Table
+export const aiResponseCacheTable = pgTable("ai_response_cache", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  topic: varchar("topic", { length: 255 }).notNull(),
+  language: varchar("language", { length: 100 }).notNull(),
+  difficulty: varchar("difficulty", { length: 100 }).notNull(),
+  contentType: varchar("contentType", { length: 100 }).notNull(),
+  response: text("response").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+}, (table) => {
+  return {
+    lookupIndex: index("ai_response_cache_lookup_idx").on(
+      table.topic,
+      table.language,
+      table.difficulty,
+      table.contentType
+    ),
+  };
+});

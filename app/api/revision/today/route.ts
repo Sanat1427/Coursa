@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { revisionScheduleTable, courseTable, chaptersTable, revisionQuestionsTable, memoryStrengthTable } from "@/lib/schema";
 import { currentUser } from "@clerk/nextjs/server";
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, lte, inArray } from "drizzle-orm";
 import { RetentionService } from "@/lib/retentionService";
 
 export async function GET(req: NextRequest) {
@@ -40,23 +40,40 @@ export async function GET(req: NextRequest) {
         )
         .orderBy(revisionScheduleTable.scheduledAt);
 
-        // 3. Populate with questions and memory scores
-        const populated = await Promise.all(reviews.map(async (rev) => {
-            const [questions, memStrength] = await Promise.all([
-                db.select().from(revisionQuestionsTable).where(eq(revisionQuestionsTable.chapterId, rev.chapterId)),
+        // 3. Populate with questions and memory scores in batch (Eliminating N+1 queries)
+        const chapterIds = reviews.map(r => r.chapterId);
+        
+        let allQuestions: any[] = [];
+        let allMemoryStrengths: any[] = [];
+        
+        if (chapterIds.length > 0) {
+            [allQuestions, allMemoryStrengths] = await Promise.all([
+                db.select().from(revisionQuestionsTable).where(inArray(revisionQuestionsTable.chapterId, chapterIds)),
                 db.select().from(memoryStrengthTable).where(
                     and(
                         eq(memoryStrengthTable.userId, safeUserEmail),
-                        eq(memoryStrengthTable.chapterId, rev.chapterId)
+                        inArray(memoryStrengthTable.chapterId, chapterIds)
                     )
-                ).limit(1)
+                )
             ]);
+        }
 
-            return {
-                ...rev,
-                questions,
-                memoryScore: memStrength[0]?.score ?? 50
-            };
+        const questionsMap = new Map<string, any[]>();
+        allQuestions.forEach(q => {
+            const list = questionsMap.get(q.chapterId) || [];
+            list.push(q);
+            questionsMap.set(q.chapterId, list);
+        });
+
+        const memoryMap = new Map<string, number>();
+        allMemoryStrengths.forEach(m => {
+            memoryMap.set(m.chapterId, m.score);
+        });
+
+        const populated = reviews.map(rev => ({
+            ...rev,
+            questions: questionsMap.get(rev.chapterId) || [],
+            memoryScore: memoryMap.get(rev.chapterId) ?? 50
         }));
 
         return NextResponse.json(populated);
@@ -65,3 +82,4 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Internal Server Error", detail: e.message }, { status: 500 });
     }
 }
+

@@ -34,7 +34,7 @@ export default function RecommendationsList() {
                 
             setRecommendations(recList.slice(0, 4));
 
-            // Log VIEWED events for the rendered recommendations without duplicate tracking
+            // Log VIEWED events for the rendered recommendations in a single batch
             if (recList.length > 0) {
                 const sessionUserId = user?.id || "anonymous";
                 const viewedKey = `viewed-courses-${sessionUserId}`;
@@ -46,24 +46,29 @@ export default function RecommendationsList() {
                 }
                 const viewedSet = new Set(viewedCourses);
 
+                const newCidsToLog: string[] = [];
                 recList.slice(0, 4).forEach((rec: any) => {
                     const cid = rec.course.courseId;
                     if (!viewedSet.has(cid)) {
+                        newCidsToLog.push(cid);
                         viewedSet.add(cid);
-                        axios.post("/api/recommendations/event", {
-                            recommendedCourseId: cid,
-                            eventType: "VIEWED"
-                        })
-                        .then(() => {
-                            try {
-                                sessionStorage.setItem(viewedKey, JSON.stringify(Array.from(viewedSet)));
-                            } catch (err) {
-                                console.error(err);
-                            }
-                        })
-                        .catch(err => console.error("Failed to log VIEWED event:", err));
                     }
                 });
+
+                if (newCidsToLog.length > 0) {
+                    axios.post("/api/recommendations/event", {
+                        recommendedCourseIds: newCidsToLog,
+                        eventType: "VIEWED"
+                    })
+                    .then(() => {
+                        try {
+                            sessionStorage.setItem(viewedKey, JSON.stringify(Array.from(viewedSet)));
+                        } catch (err) {
+                            console.error(err);
+                        }
+                    })
+                    .catch(err => console.error("Failed to log VIEWED events:", err));
+                }
             }
         } catch (e) {
             console.error("Failed to fetch recommendations:", e);

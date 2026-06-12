@@ -1,47 +1,22 @@
-"use client";
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Loader2, BookOpen, Layers, GitPullRequest, Award, Star } from "lucide-react";
-import { toast } from "sonner";
+import { ChevronLeft, BookOpen, Layers, GitPullRequest, Award, Star } from "lucide-react";
+import { db } from "@/lib/db";
+import { conceptsTable, conceptRelationshipsTable } from "@/lib/schema";
+import { eq, or } from "drizzle-orm";
 
-export default function ConceptExplorerPage() {
-    const { id } = useParams() as { id: string };
-    const router = useRouter();
+interface PageProps {
+    params: Promise<{
+        id: string;
+    }>;
+}
 
-    const [data, setData] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+export default async function ConceptExplorerPage({ params }: PageProps) {
+    const { id } = await params;
 
-    useEffect(() => {
-        if (id) {
-            fetchConceptDetails();
-        }
-    }, [id]);
-
-    const fetchConceptDetails = async () => {
-        setLoading(true);
-        try {
-            const res = await axios.get(`/api/concepts/${id}`);
-            setData(res.data);
-        } catch (e: any) {
-            console.error("Failed to fetch concept details:", e);
-            toast.error("Failed to load concept explorer");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="w-full min-h-screen flex flex-col items-center justify-center gap-3 bg-[#faf8f5]">
-                <Loader2 className="w-8 h-8 animate-spin text-sketch-primary" />
-                <span className="font-sans italic text-slate-500 text-lg">Drawing concept maps...</span>
-            </div>
-        );
-    }
-
-    if (!data) {
+    // Fetch concept details directly
+    const concepts = await db.select().from(conceptsTable).where(eq(conceptsTable.id, id)).limit(1);
+    if (concepts.length === 0) {
         return (
             <div className="w-full min-h-screen flex flex-col items-center justify-center gap-3 bg-[#faf8f5] p-6 text-center">
                 <h2 className="font-display text-2xl font-bold text-slate-800">Concept Map Not Found</h2>
@@ -54,10 +29,57 @@ export default function ConceptExplorerPage() {
         );
     }
 
-    const { concept, prerequisites, advancedTopics, related, usedIn } = data;
+    const concept = concepts[0];
+
+    // Fetch relationships linked to this concept
+    const relationships = await db.select().from(conceptRelationshipsTable)
+        .where(
+            or(
+                eq(conceptRelationshipsTable.sourceConceptId, id),
+                eq(conceptRelationshipsTable.targetConceptId, id)
+            )
+        );
+
+    const allConcepts = await db.select().from(conceptsTable);
+    const conceptMap = new Map(allConcepts.map(c => [c.id, c]));
+
+    const prerequisites: any[] = [];
+    const advancedTopics: any[] = [];
+    const related: any[] = [];
+    const usedIn: any[] = [];
+
+    for (const rel of relationships) {
+        if (rel.relationshipType === 'PREREQUISITE') {
+            if (rel.targetConceptId === id) {
+                prerequisites.push(conceptMap.get(rel.sourceConceptId));
+            } else {
+                usedIn.push(conceptMap.get(rel.targetConceptId));
+            }
+        } else if (rel.relationshipType === 'ADVANCED_TOPIC') {
+            if (rel.sourceConceptId === id) {
+                advancedTopics.push(conceptMap.get(rel.targetConceptId));
+            } else {
+                prerequisites.push(conceptMap.get(rel.sourceConceptId));
+            }
+        } else if (rel.relationshipType === 'USED_IN') {
+            if (rel.sourceConceptId === id) {
+                usedIn.push(conceptMap.get(rel.targetConceptId));
+            } else {
+                prerequisites.push(conceptMap.get(rel.sourceConceptId));
+            }
+        } else if (rel.relationshipType === 'RELATED') {
+            const otherId = rel.sourceConceptId === id ? rel.targetConceptId : rel.sourceConceptId;
+            related.push(conceptMap.get(otherId));
+        }
+    }
+
+    const cleanPrerequisites = prerequisites.filter(Boolean);
+    const cleanAdvancedTopics = advancedTopics.filter(Boolean);
+    const cleanRelated = related.filter(Boolean);
+    const cleanUsedIn = usedIn.filter(Boolean);
 
     return (
-        <div className="flex flex-col items-center dot-pattern min-h-screen py-10 px-4 md:px-10 bg-[#faf8f5]">
+        <div className="flex flex-col items-center dot-pattern min-h-screen py-10 px-4 md:px-10 bg-[#faf8f5] w-full">
             {/* Header Navigation */}
             <div className="w-full max-w-4xl mb-8 flex items-center justify-between">
                 <Link href="/revision">
@@ -98,11 +120,11 @@ export default function ConceptExplorerPage() {
                     <h3 className="font-display text-lg font-bold text-slate-800 mb-4 pb-1.5 border-b border-dashed border-slate-200 flex items-center gap-2">
                         <GitPullRequest className="w-5 h-5 text-sketch-blue" /> Prerequisites
                     </h3>
-                    {prerequisites.length === 0 ? (
+                    {cleanPrerequisites.length === 0 ? (
                         <p className="text-slate-400 font-sans text-sm italic">None required. Ready to learn directly!</p>
                     ) : (
                         <div className="flex flex-col gap-2">
-                            {prerequisites.map((c: any) => (
+                            {cleanPrerequisites.map((c: any) => (
                                 <Link href={`/concepts/${c.id}`} key={c.id}>
                                     <div className="p-3 wobbly-border border border-slate-100 hover:bg-sketch-primary/5 transition-colors font-display font-bold text-sm text-slate-700 flex justify-between items-center cursor-pointer">
                                         <span>{c.name}</span>
@@ -120,11 +142,11 @@ export default function ConceptExplorerPage() {
                     <h3 className="font-display text-lg font-bold text-slate-800 mb-4 pb-1.5 border-b border-dashed border-slate-200 flex items-center gap-2">
                         <Award className="w-5 h-5 text-sketch-orange animate-pulse" /> Advanced Topics
                     </h3>
-                    {advancedTopics.length === 0 ? (
+                    {cleanAdvancedTopics.length === 0 ? (
                         <p className="text-slate-400 font-sans text-sm italic">No advanced follow-up topics mapped.</p>
                     ) : (
                         <div className="flex flex-col gap-2">
-                            {advancedTopics.map((c: any) => (
+                            {cleanAdvancedTopics.map((c: any) => (
                                 <Link href={`/concepts/${c.id}`} key={c.id}>
                                     <div className="p-3 wobbly-border border border-slate-100 hover:bg-sketch-primary/5 transition-colors font-display font-bold text-sm text-slate-700 flex justify-between items-center cursor-pointer">
                                         <span>{c.name}</span>
@@ -142,11 +164,11 @@ export default function ConceptExplorerPage() {
                     <h3 className="font-display text-lg font-bold text-slate-800 mb-4 pb-1.5 border-b border-dashed border-slate-200 flex items-center gap-2">
                         <Layers className="w-5 h-5 text-emerald-600" /> Used In / Applied In
                     </h3>
-                    {usedIn.length === 0 ? (
+                    {cleanUsedIn.length === 0 ? (
                         <p className="text-slate-400 font-sans text-sm italic">Used directly as standalone building blocks.</p>
                     ) : (
                         <div className="flex flex-col gap-2">
-                            {usedIn.map((c: any) => (
+                            {cleanUsedIn.map((c: any) => (
                                 <Link href={`/concepts/${c.id}`} key={c.id}>
                                     <div className="p-3 wobbly-border border border-slate-100 hover:bg-sketch-primary/5 transition-colors font-display font-bold text-sm text-slate-700 flex justify-between items-center cursor-pointer">
                                         <span>{c.name}</span>
@@ -164,11 +186,11 @@ export default function ConceptExplorerPage() {
                     <h3 className="font-display text-lg font-bold text-slate-800 mb-4 pb-1.5 border-b border-dashed border-slate-200 flex items-center gap-2">
                         <Star className="w-5 h-5 text-purple-600 animate-pulse" /> Related Concepts
                     </h3>
-                    {related.length === 0 ? (
+                    {cleanRelated.length === 0 ? (
                         <p className="text-slate-400 font-sans text-sm italic">No other related concepts mapped.</p>
                     ) : (
                         <div className="flex flex-col gap-2">
-                            {related.map((c: any) => (
+                            {cleanRelated.map((c: any) => (
                                 <Link href={`/concepts/${c.id}`} key={c.id}>
                                     <div className="p-3 wobbly-border border border-slate-100 hover:bg-sketch-primary/5 transition-colors font-display font-bold text-sm text-slate-700 flex justify-between items-center cursor-pointer">
                                         <span>{c.name}</span>
@@ -183,3 +205,4 @@ export default function ConceptExplorerPage() {
         </div>
     );
 }
+

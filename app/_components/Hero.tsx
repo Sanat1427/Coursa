@@ -257,6 +257,26 @@ function Hero() {
                 </div>
               </div>
             </div>
+
+            {/* Import YouTube Playlist Card */}
+            <div className="w-full wobbly-border border-2 border-sketch-primary bg-sketch-yellow/10 p-5 flex items-center justify-between gap-4 rotate-[-0.5deg] hard-shadow">
+              <div className="flex items-start gap-3.5">
+                <div className="bg-white p-2.5 wobbly-border border-2 border-sketch-primary text-red-500 flex items-center justify-center shrink-0">
+                  <Video className="w-6 h-6 fill-red-500/10" />
+                </div>
+                <div>
+                  <h4 className="font-display text-xl font-bold text-slate-900 leading-tight">Import YouTube Playlist</h4>
+                  <p className="font-sans text-sm text-slate-700 leading-tight mt-1">
+                    Convert any YouTube playlist into a fully structured course with quizzes, graphs, and spaced repetition.
+                  </p>
+                </div>
+              </div>
+              <Link href="/course/create">
+                <button className="bg-sketch-primary text-white font-display text-lg px-6 py-2.5 wobbly-border hard-shadow-sm hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all cursor-pointer whitespace-nowrap">
+                  Import Playlist
+                </button>
+              </Link>
+            </div>
           </div>
 
           {/* Right Column: Interactive Visual OS Preview */}

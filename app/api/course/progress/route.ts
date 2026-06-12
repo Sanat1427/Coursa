@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { userProgressTable, courseTable, courseCompletionTable } from "@/lib/schema";
+import { userProgressTable, courseTable, courseCompletionTable, chaptersTable, playlistProgressTable } from "@/lib/schema";
 import { currentUser } from "@clerk/nextjs/server";
 import { and, eq } from "drizzle-orm";
 import { RetentionService } from "@/lib/retentionService";
@@ -78,6 +78,45 @@ export async function POST(req: NextRequest) {
                 })
                 .returning();
             result = inserted[0];
+        }
+
+        // Track playlist-specific video progress
+        try {
+            const chapterRows = await db.select({ youtubeVideoId: chaptersTable.youtubeVideoId })
+                .from(chaptersTable)
+                .where(eq(chaptersTable.chapterId, chapterId))
+                .limit(1);
+            if (chapterRows.length > 0 && chapterRows[0].youtubeVideoId) {
+                const videoId = chapterRows[0].youtubeVideoId;
+                const existingPlayProgress = await db.select().from(playlistProgressTable)
+                    .where(
+                        and(
+                            eq(playlistProgressTable.userId, safeUserEmail),
+                            eq(playlistProgressTable.courseId, courseId),
+                            eq(playlistProgressTable.videoId, videoId)
+                        )
+                    ).limit(1);
+                
+                if (existingPlayProgress.length > 0) {
+                    await db.update(playlistProgressTable)
+                        .set({
+                            completed: progress >= 100,
+                            completedAt: progress >= 100 ? new Date() : null,
+                        })
+                        .where(eq(playlistProgressTable.id, existingPlayProgress[0].id));
+                } else {
+                    await db.insert(playlistProgressTable)
+                        .values({
+                            userId: safeUserEmail,
+                            courseId,
+                            videoId,
+                            completed: progress >= 100,
+                            completedAt: progress >= 100 ? new Date() : null,
+                        });
+                }
+            }
+        } catch (err) {
+            console.error("Failed to log playlist video progress:", err);
         }
 
         // Check if the user has completed all chapters of the course

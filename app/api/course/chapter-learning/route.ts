@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { chaptersTable, chapterConceptsTable, conceptsTable, revisionScheduleTable, revisionQuestionsTable, courseTable } from "@/lib/schema";
+import { chaptersTable, chapterConceptsTable, conceptsTable, revisionScheduleTable, revisionQuestionsTable, courseTable, userProgressTable } from "@/lib/schema";
 import { eq, and, ilike } from "drizzle-orm";
 import { currentUser } from "@clerk/nextjs/server";
 import { RetentionService } from "@/lib/retentionService";
 import { client } from "@/lib/gemini";
-import { fetchValidatedYouTubeVideo } from "@/lib/youtube";
+import { fetchValidatedYouTubeVideo, fetchYouTubeTranscript } from "@/lib/youtube";
 import { fetchGoogleSearchMaterials } from "@/lib/googleSearch";
 
 export async function GET(req: NextRequest) {
@@ -191,10 +191,33 @@ Return the response ONLY as a valid JSON object matching the schema:
 
         // 4. Fire-and-forget: Extract concepts and generate revision questions in background
         // These are Gemini calls that can take 10-30s each — don't block the response
-        const backgroundWork = Promise.allSettled([
-            RetentionService.extractConceptsForChapter(chapterId, chapterRow.chapterTitle, JSON.stringify(materials)),
-            RetentionService.generateRevisionQuestions(chapterId, chapterRow.chapterTitle, JSON.stringify(materials))
-        ]).catch(err => console.error("[Background] Concept/question generation failed:", err));
+        const layout = courseRow.courseLayout as any;
+        const isPlaylistOrHybrid = layout && (layout.playlistId || layout.mode === 'playlist' || layout.mode === 'hybrid');
+
+        const runBackgroundExtraction = async () => {
+            try {
+                if (isPlaylistOrHybrid && chapterRow.youtubeVideoId) {
+                    const transcript = await fetchYouTubeTranscript(chapterRow.youtubeVideoId);
+                    if (transcript) {
+                        console.log(`[Transcript Found] Running playlist extraction for ${chapterRow.chapterTitle}`);
+                        await RetentionService.extractPlaylistConceptsAndGraph(courseId, chapterRow.youtubeVideoId, chapterId, chapterRow.chapterTitle, transcript);
+                        await RetentionService.generateRevisionQuestions(chapterId, chapterRow.chapterTitle, transcript);
+                        await RetentionService.extractConceptsForChapter(chapterId, chapterRow.chapterTitle, transcript);
+                        return;
+                    }
+                    console.log(`[Transcript NOT Found] Falling back to standard summary for ${chapterRow.chapterTitle}`);
+                }
+                
+                await Promise.allSettled([
+                    RetentionService.extractConceptsForChapter(chapterId, chapterRow.chapterTitle, JSON.stringify(materials)),
+                    RetentionService.generateRevisionQuestions(chapterId, chapterRow.chapterTitle, JSON.stringify(materials))
+                ]);
+            } catch (err) {
+                console.error("[Background extraction error]:", err);
+            }
+        };
+
+        const backgroundWork = runBackgroundExtraction().catch(err => console.error("[Background] Concept/question generation failed:", err));
 
         // 5. Fetch existing concept data and questions in PARALLEL (these are fast DB reads)
         const [linkedConceptsList, existingQuestions, schedules, readiness] = await Promise.all([
@@ -237,6 +260,45 @@ Return the response ONLY as a valid JSON object matching the schema:
         const fallbackMessage = videoContent.fallbackMessage || "";
         const alternativeVideos = videoContent.alternativeVideos || [];
 
+        // 6. Merged progress: Increment or create progress record and track views count inline
+        const existingProgress = await db.select().from(userProgressTable)
+            .where(
+                and(
+                    eq(userProgressTable.userId, safeUserEmail),
+                    eq(userProgressTable.courseId, courseId),
+                    eq(userProgressTable.chapterId, chapterId)
+                )
+            )
+            .limit(1);
+
+        let progressRow;
+        if (existingProgress.length > 0) {
+            const updated = await db.update(userProgressTable)
+                .set({
+                    views: existingProgress[0].views + 1,
+                    lastVisitedAt: new Date(),
+                    updatedAt: new Date(),
+                })
+                .where(eq(userProgressTable.id, existingProgress[0].id))
+                .returning();
+            progressRow = updated[0];
+        } else {
+            const inserted = await db.insert(userProgressTable)
+                .values({
+                    userId: safeUserEmail,
+                    courseId,
+                    chapterId,
+                    status: 'NOT_STARTED',
+                    progressPercentage: 0,
+                    views: 1,
+                    lastVisitedAt: new Date(),
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                })
+                .returning();
+            progressRow = inserted[0];
+        }
+
         return NextResponse.json({
             youtubeVideoId: chapterRow.youtubeVideoId || null,
             chapterTitle: chapterRow.chapterTitle,
@@ -249,6 +311,7 @@ Return the response ONLY as a valid JSON object matching the schema:
             concepts: chapterConcepts,
             relatedConcepts: relatedConcepts.slice(0, 5), // return max 5 related
             recallQuestions: existingQuestions,
+            progress: progressRow,
             revisionStatus: currentActiveSchedule ? {
                 id: currentActiveSchedule.id,
                 reviewNumber: currentActiveSchedule.reviewNumber,

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { questionsTable, quizzesTable } from "@/lib/schema";
 import { client } from "@/lib/gemini";
 import { currentUser } from "@clerk/nextjs/server";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
     try {
@@ -19,16 +19,23 @@ export async function GET(req: NextRequest) {
 
         const quizzes = await db.select().from(quizzesTable).where(eq(quizzesTable.chapterId, chapterId));
         
-        // Fetch questions for each quiz
-        const quizzesWithQuestions = await Promise.all(
-            quizzes.map(async (quiz) => {
-                const questions = await db.select().from(questionsTable).where(eq(questionsTable.quizId, quiz.quizId));
-                return {
-                    ...quiz,
-                    questions
-                };
-            })
-        );
+        const quizIds = quizzes.map(q => q.quizId);
+        let allQuestions: any[] = [];
+        if (quizIds.length > 0) {
+            allQuestions = await db.select().from(questionsTable).where(inArray(questionsTable.quizId, quizIds));
+        }
+
+        const questionsMap = new Map<string, any[]>();
+        allQuestions.forEach(q => {
+            const list = questionsMap.get(q.quizId) || [];
+            list.push(q);
+            questionsMap.set(q.quizId, list);
+        });
+
+        const quizzesWithQuestions = quizzes.map(quiz => ({
+            ...quiz,
+            questions: questionsMap.get(quiz.quizId) || []
+        }));
 
         return NextResponse.json(quizzesWithQuestions);
     } catch (error: any) {

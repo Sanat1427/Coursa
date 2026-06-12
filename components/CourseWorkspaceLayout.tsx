@@ -8,11 +8,15 @@ import {
     Calendar, BrainCircuit, HeartHandshake, Eye
 } from "lucide-react";
 import { toast } from "sonner";
+import dynamic from "next/dynamic";
 import YouTubePlayer from "./YouTubePlayer";
-import NotesPanel from "./NotesPanel";
-import QuizCard from "./QuizCard";
-import ChapterProgressTracker from "./ChapterProgressTracker";
-import ConceptCardDrawer from "./ConceptCardDrawer";
+
+const NotesPanel = dynamic(() => import("./NotesPanel"), { ssr: false });
+const QuizCard = dynamic(() => import("./QuizCard"), { ssr: false });
+const ChapterProgressTracker = dynamic(() => import("./ChapterProgressTracker"), { ssr: false });
+const ConceptCardDrawer = dynamic(() => import("./ConceptCardDrawer"), { ssr: false });
+const PlaylistDashboard = dynamic(() => import("./PlaylistDashboard"), { ssr: false });
+
 
 type Props = {
     course: any;
@@ -77,20 +81,17 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
             const res = await axios.get(`/api/course/chapter-learning?courseId=${course.courseId}&chapterId=${chId}`);
             setWorkspaceData(res.data);
 
-            // Record page view for progress tracking
-            axios.get(`/api/course/progress?courseId=${course.courseId}&chapterId=${chId}`)
-                .then(progressRes => {
-                    // Update views in progress rows
-                    setProgressRows(prev => {
-                        const exists = prev.some(p => p.chapterId === chId);
-                        if (exists) {
-                            return prev.map(p => p.chapterId === chId ? { ...p, views: p.views + 1 } : p);
-                        } else {
-                            return [...prev, progressRes.data];
-                        }
-                    });
-                })
-                .catch(err => console.error("Failed recording chapter view", err));
+            // Update views in progress rows from the inline progress data returned
+            if (res.data.progress) {
+                setProgressRows(prev => {
+                    const exists = prev.some(p => p.chapterId === chId);
+                    if (exists) {
+                        return prev.map(p => p.chapterId === chId ? { ...p, views: res.data.progress.views } : p);
+                    } else {
+                        return [...prev, res.data.progress];
+                    }
+                });
+            }
 
         } catch (e) {
             console.error("Failed loading chapter workspace details", e);
@@ -100,7 +101,8 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
         }
     };
 
-    const handleProgressChange = (newProgress: number, newStatus: string) => {
+    const handleProgressChange = React.useCallback((newProgress: number, newStatus: string) => {
+        if (!activeChapter) return;
         setProgressRows(prev => {
             const exists = prev.some(p => p.chapterId === activeChapter.chapterId);
             if (exists) {
@@ -117,20 +119,18 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
                 }];
             }
         });
-    };
+    }, [activeChapter]);
 
     const handleRecallRating = async (rating: 'EASY' | 'MEDIUM' | 'HARD') => {
         if (!workspaceData?.concepts || workspaceData.concepts.length === 0) return;
         setRatingLoading(true);
         try {
-            // Rate all concepts associated with this chapter in background
-            const promises = workspaceData.concepts.map((c: any) => 
-                axios.post("/api/concepts/review", {
-                    conceptId: c.id,
-                    rating
-                })
-            );
-            await Promise.all(promises);
+            // Rate all concepts associated with this chapter in a single batch request
+            const conceptIds = workspaceData.concepts.map((c: any) => c.id);
+            await axios.post("/api/concepts/review", {
+                conceptIds,
+                rating
+            });
 
             // If there's an active SRS schedule for this chapter, complete it too
             if (workspaceData.revisionStatus?.id) {
@@ -584,6 +584,7 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
                                     {/* 9. Chapter Tracker */}
                                     <div className="pt-6 border-t-2 border-dashed border-slate-100">
                                         <ChapterProgressTracker
+                                            key={activeChapter.chapterId}
                                             courseId={course.courseId}
                                             chapterId={activeChapter.chapterId}
                                             initialProgress={activeProgress?.progressPercentage || 0}
@@ -591,6 +592,15 @@ export default function CourseWorkspaceLayout({ course, initialProgressRows, use
                                             onProgressChange={handleProgressChange}
                                         />
                                     </div>
+
+                                    {/* 10. Playlist Dashboard (Premium playlist courses only) */}
+                                    {(course.courseLayout?.playlistId || course.courseLayout?.mode === 'playlist' || course.courseLayout?.mode === 'hybrid') && (
+                                        <PlaylistDashboard 
+                                            courseId={course.courseId} 
+                                            chapters={chapters} 
+                                            progressRows={progressRows} 
+                                        />
+                                    )}
 
                                 </div>
                             ) : null}

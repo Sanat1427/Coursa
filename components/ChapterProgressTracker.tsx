@@ -13,7 +13,7 @@ type Props = {
     onProgressChange?: (progressPercentage: number, status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED') => void;
 };
 
-export default function ChapterProgressTracker({
+const ChapterProgressTracker = React.memo(function ChapterProgressTracker({
     courseId,
     chapterId,
     initialProgress = 0,
@@ -115,4 +115,6 @@ export default function ChapterProgressTracker({
             </div>
         </div>
     );
-}
+});
+
+export default ChapterProgressTracker;

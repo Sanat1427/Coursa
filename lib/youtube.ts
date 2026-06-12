@@ -569,3 +569,171 @@ export async function fetchValidatedYouTubeVideo(
         alternativeVideos
     };
 }
+
+export function parseISO8601Duration(durationStr: string): number {
+    const regex = /P(?:([0-9]+)D)?T(?:([0-9]+)H)?(?:([0-9]+)M)?(?:([0-9]+)S)?/;
+    const matches = durationStr.match(regex);
+    if (!matches) return 0;
+    
+    const days = parseInt(matches[1] || "0", 10);
+    const hours = parseInt(matches[2] || "0", 10);
+    const minutes = parseInt(matches[3] || "0", 10);
+    const seconds = parseInt(matches[4] || "0", 10);
+    
+    return days * 86400 + hours * 3600 + minutes * 60 + seconds;
+}
+
+export async function fetchPlaylistDetails(playlistId: string) {
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!apiKey) {
+        throw new Error("YOUTUBE_API_KEY is not defined in environment variables");
+    }
+    const youtube = google.youtube({
+        version: "v3",
+        auth: apiKey,
+    });
+
+    // 1. Fetch Playlist Metadata
+    const playlistResponse = await youtube.playlists.list({
+        part: ["snippet", "contentDetails"],
+        id: [playlistId],
+    });
+
+    const playlist = playlistResponse.data.items?.[0];
+    if (!playlist) {
+        throw new Error("Playlist not found or is private");
+    }
+
+    const playlistTitle = playlist.snippet?.title || "Untitled Playlist";
+    const playlistDescription = playlist.snippet?.description || "";
+    const channelName = playlist.snippet?.channelTitle || "Unknown Channel";
+    const videoCount = playlist.contentDetails?.itemCount || 0;
+
+    // 2. Fetch all playlist items (videos)
+    const videos: any[] = [];
+    let nextPageToken: string | undefined = undefined;
+    
+    do {
+        const itemsResponse: any = await youtube.playlistItems.list({
+            part: ["snippet", "contentDetails"],
+            playlistId: playlistId,
+            maxResults: 50,
+            pageToken: nextPageToken,
+        });
+
+        const items = itemsResponse.data.items || [];
+        for (const item of items) {
+            const videoId = item.contentDetails?.videoId;
+            if (!videoId) continue;
+
+            const snippet = item.snippet;
+            const title = snippet?.title || "Untitled Video";
+            const description = snippet?.description || "";
+            const thumbnail = snippet?.thumbnails?.maxres?.url || 
+                              snippet?.thumbnails?.high?.url || 
+                              snippet?.thumbnails?.medium?.url || 
+                              snippet?.thumbnails?.default?.url || "";
+            const position = snippet?.position || 0;
+
+            videos.push({
+                videoId,
+                title,
+                description,
+                thumbnail,
+                duration: 0, // Will populate in the next step
+                position,
+            });
+        }
+        nextPageToken = itemsResponse.data.nextPageToken;
+    } while (nextPageToken);
+
+    // 3. Fetch durations for all videos in batches of 50
+    const videoIds = videos.map(v => v.videoId);
+    const chunkedIds: string[][] = [];
+    for (let i = 0; i < videoIds.length; i += 50) {
+        chunkedIds.push(videoIds.slice(i, i + 50));
+    }
+
+    const durationMap: Record<string, number> = {};
+    for (const chunk of chunkedIds) {
+        const videoDetailsResponse = await youtube.videos.list({
+            part: ["contentDetails"],
+            id: chunk,
+        });
+
+        const items = videoDetailsResponse.data.items || [];
+        for (const item of items) {
+            if (item.id && item.contentDetails?.duration) {
+                const durationSeconds = parseISO8601Duration(item.contentDetails.duration);
+                durationMap[item.id] = durationSeconds;
+            }
+        }
+    }
+
+    // Assign durations
+    for (const video of videos) {
+        video.duration = durationMap[video.videoId] || 0;
+    }
+
+    return {
+        playlistId,
+        playlistTitle,
+        playlistDescription,
+        channelName,
+        videoCount,
+        videos,
+    };
+}
+
+export async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+    try {
+        const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const response = await fetch(watchUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+            }
+        });
+        if (!response.ok) return null;
+        const html = await response.text();
+        
+        // Find ytInitialPlayerResponse
+        const regex = /ytInitialPlayerResponse\s*=\s*({.+?});/s;
+        const match = html.match(regex);
+        if (!match) return null;
+        
+        const playerResponse = JSON.parse(match[1]);
+        const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (!captionTracks || captionTracks.length === 0) return null;
+        
+        // Prefer English captions, otherwise grab first available
+        let track = captionTracks.find((t: any) => t.languageCode === 'en') || captionTracks[0];
+        if (!track || !track.baseUrl) return null;
+        
+        const transcriptResponse = await fetch(track.baseUrl);
+        if (!transcriptResponse.ok) return null;
+        
+        const xmlText = await transcriptResponse.text();
+        // Extract text contents from <text ...>content</text> tags
+        const textMatches = xmlText.match(/<text[^>]*>([\s\S]*?)<\/text>/gi);
+        if (!textMatches) return null;
+        
+        const cleanText = textMatches.map(m => {
+            const text = m.replace(/<[^>]*>/g, '');
+            // Decode HTML entities
+            return text
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&#x27;/g, "'")
+                .trim();
+        }).join(' ');
+        
+        return cleanText;
+    } catch (error) {
+        console.error("fetchYouTubeTranscript error for videoId " + videoId + ":", error);
+        return null;
+    }
+}

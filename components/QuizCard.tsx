@@ -12,7 +12,7 @@ type Props = {
     subContent: string[];
 };
 
-export default function QuizCard({ courseId, chapterId, chapterTitle, subContent }: Props) {
+const QuizCard = React.memo(function QuizCard({ courseId, chapterId, chapterTitle, subContent }: Props) {
     const [quiz, setQuiz] = useState<Quiz | null>(null);
     const [stats, setStats] = useState<{ totalAttempts: number; highestScore: number; latestScore: number } | null>(null);
     const [loading, setLoading] = useState(true);
@@ -386,4 +386,6 @@ export default function QuizCard({ courseId, chapterId, chapterTitle, subContent
             )}
         </div>
     );
-}
+});
+
+export default QuizCard;

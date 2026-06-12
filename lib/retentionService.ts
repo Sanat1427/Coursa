@@ -9,7 +9,12 @@ import {
     courseTable,
     chaptersTable,
     conceptMasteryTable,
-    userProgressTable
+    userProgressTable,
+    playlistConceptsTable,
+    playlistGraphNodesTable,
+    playlistGraphEdgesTable,
+    playlistFlashcardsTable,
+    playlistProgressTable
 } from "./schema";
 import { eq, and, lte, sql, inArray, ne } from "drizzle-orm";
 import { client } from "./gemini";
@@ -18,6 +23,7 @@ import { unstable_cache, revalidateTag } from "next/cache";
 function safeRevalidateReadiness() {
   try {
     revalidateTag("readiness", "max");
+    revalidateTag("revision", "max");
   } catch (err) {
     console.warn("revalidateTag failed (probably running in non-Next context):", err);
   }
@@ -897,6 +903,124 @@ Return the result as a raw JSON array of objects with the exact schema:
             missingPrerequisites: Array.from(new Set(missingPrereqs))
         };
     });
+  },
+
+  async extractPlaylistConceptsAndGraph(courseId: string, videoId: string, chapterId: string, chapterTitle: string, transcript: string) {
+    try {
+      // 1. Check if already extracted
+      const existing = await db.select().from(playlistConceptsTable)
+        .where(
+          and(
+            eq(playlistConceptsTable.courseId, courseId),
+            eq(playlistConceptsTable.sourceVideoId, videoId)
+          )
+        ).limit(1);
+      if (existing.length > 0) return;
+
+      console.log(`[YouTube Playlist] Extracting concepts, graph, and flashcards for ${chapterTitle} from transcript...`);
+
+      const prompt = `
+You are a Senior Learning Platform Architect.
+Analyze the following YouTube video transcript for the video titled "${chapterTitle}" in the course:
+
+${transcript.substring(0, 12000)}
+
+Extract:
+1. Key Concepts (concepts, definitions/descriptions, and confidence score between 0.0 and 1.0).
+2. Knowledge Graph Nodes (conceptId - slug format, label).
+3. Knowledge Graph Edges (source conceptId, target conceptId, type: 'PREREQUISITE' | 'RELATED' | 'USED_IN').
+4. Flashcards (concept, question, answer) for spaced repetition.
+
+Return ONLY a valid JSON object matching the schema:
+{
+  "concepts": [
+    { "concept": "Concept Name", "description": "Definition/description...", "confidence": 0.95 }
+  ],
+  "graphNodes": [
+    { "conceptId": "concept-id", "label": "Concept Name" }
+  ],
+  "graphEdges": [
+    { "source": "source-id", "target": "target-id", "type": "PREREQUISITE" }
+  ],
+  "flashcards": [
+    { "concept": "Concept Name", "question": "Flashcard question...", "answer": "Flashcard answer..." }
+  ]
+}
+`;
+
+      const resp = await client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      const rawResult = resp.text || '';
+      const sanitizedResult = rawResult.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const payload = JSON.parse(sanitizedResult);
+
+      // Save concepts
+      if (payload.concepts && Array.isArray(payload.concepts)) {
+        const conceptsToInsert = payload.concepts.map((c: any) => ({
+          courseId,
+          concept: c.concept,
+          description: c.description,
+          sourceVideoId: videoId,
+          confidence: c.confidence || 1.0
+        }));
+        if (conceptsToInsert.length > 0) {
+          await db.insert(playlistConceptsTable).values(conceptsToInsert);
+        }
+      }
+
+      // Save graph nodes
+      if (payload.graphNodes && Array.isArray(payload.graphNodes)) {
+        const nodesToInsert = payload.graphNodes.map((n: any) => ({
+          courseId,
+          conceptId: n.conceptId,
+          label: n.label,
+          x: Math.random() * 800,
+          y: Math.random() * 600,
+        }));
+        if (nodesToInsert.length > 0) {
+          await db.insert(playlistGraphNodesTable).values(nodesToInsert);
+        }
+      }
+
+      // Save graph edges
+      if (payload.graphEdges && Array.isArray(payload.graphEdges)) {
+        const edgesToInsert = payload.graphEdges.map((e: any) => ({
+          courseId,
+          source: e.source,
+          target: e.target,
+          type: e.type || 'RELATED',
+        }));
+        if (edgesToInsert.length > 0) {
+          await db.insert(playlistGraphEdgesTable).values(edgesToInsert);
+        }
+      }
+
+      // Save flashcards
+      if (payload.flashcards && Array.isArray(payload.flashcards)) {
+        const flashcardsToInsert = payload.flashcards.map((f: any) => ({
+          courseId,
+          concept: f.concept,
+          question: f.question,
+          answer: f.answer,
+          reviewSchedule: new Date(Date.now() + 24 * 60 * 60 * 1000), // First review tomorrow
+          box: 1,
+        }));
+        if (flashcardsToInsert.length > 0) {
+          await db.insert(playlistFlashcardsTable).values(flashcardsToInsert);
+        }
+      }
+
+      console.log(`[YouTube Playlist] Saved extracted items for video ${videoId}`);
+
+    } catch (error) {
+      console.error(`Failed to extract playlist concepts/graph for video ${videoId}:`, error);
+    }
   }
 };
 

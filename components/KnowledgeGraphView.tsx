@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { ZoomIn, ZoomOut, Move, X, Layers, ArrowRight, BookOpen } from "lucide-react";
 import Link from "next/link";
 
@@ -24,7 +24,57 @@ interface Props {
     onNodeSelect?: (conceptId: string) => void;
 }
 
-export default function KnowledgeGraphView({ nodes = [], edges = [], onNodeSelect }: Props) {
+// 1. Move static configurations outside component to avoid reallocation
+const CATEGORY_POSITIONS: Record<string, { x: number; yStart: number; yGap: number }> = {
+    "Programming Basics": { x: 150, yStart: 120, yGap: 140 },
+    "Frontend": { x: 450, yStart: 80, yGap: 140 },
+    "Data Structures": { x: 750, yStart: 100, yGap: 130 },
+    "Algorithms": { x: 1050, yStart: 100, yGap: 130 },
+    "Databases": { x: 1350, yStart: 120, yGap: 150 },
+    "Backend & Systems": { x: 1650, yStart: 80, yGap: 120 },
+    "AI & Data Science": { x: 1950, yStart: 180, yGap: 160 },
+};
+
+// 2. Move pure helper functions outside component
+const getNodeTheme = (node: Node) => {
+    if (node.status) {
+        switch (node.status) {
+            case "Mastered":
+                return { bg: "#f0fdf4", border: "#22c55e", text: "#166534" }; // green
+            case "Needs Review":
+                return { bg: "#fffbeb", border: "#f59e0b", text: "#78350f" }; // yellow/orange
+            case "Ready to Learn":
+                return { bg: "#eff6ff", border: "#3b82f6", text: "#1e40af" }; // blue
+            case "Locked":
+                return { bg: "#f1f5f9", border: "#94a3b8", text: "#64748b" }; // grey
+        }
+    }
+    
+    switch (node.category) {
+        case "Programming Basics": return { bg: "#f0fdf4", border: "#22c55e", text: "#166534" };
+        case "Frontend": return { bg: "#fdf4ff", border: "#d946ef", text: "#86198f" };
+        case "Data Structures": return { bg: "#eff6ff", border: "#3b82f6", text: "#1e40af" };
+        case "Algorithms": return { bg: "#fff7ed", border: "#f97316", text: "#9a3412" };
+        case "Databases": return { bg: "#fff1f2", border: "#f43f5e", text: "#9f1239" };
+        case "Backend & Systems": return { bg: "#faf5ff", border: "#a855f7", text: "#6b21a8" };
+        case "AI & Data Science": return { bg: "#f0fdfa", border: "#14b8a6", text: "#115e59" };
+        default: return { bg: "#f8fafc", border: "#64748b", text: "#334155" };
+    }
+};
+
+const makeWobblyCircle = (cx: number, cy: number, r: number) => {
+    const d1 = r * 0.04;
+    const d2 = r * 0.05;
+    const p1 = `M ${cx - r + d1} ${cy - d2}`;
+    const c1 = `C ${cx - r} ${cy - r - d1}, ${cx - d2} ${cy - r + d1}, ${cx} ${cy - r}`;
+    const c2 = `C ${cx + r - d1} ${cy - r - d2}, ${cx + r + d2} ${cy + d1}, ${cx + r} ${cy}`;
+    const c3 = `C ${cx + r - d2} ${cy + r + d1}, ${cx + d1} ${cy + r - d2}, ${cx} ${cy + r}`;
+    const c4 = `C ${cx - r - d1} ${cy + r + d2}, ${cx - r + d2} ${cy - d1}, ${cx - r + d1} ${cy - d2}`;
+    return `${p1} ${c1} ${c2} ${c3} ${c4} Z`;
+};
+
+// 3. Wrap component in React.memo to prevent unnecessary re-renders when parent states change
+const KnowledgeGraphView = React.memo(function KnowledgeGraphView({ nodes = [], edges = [], onNodeSelect }: Props) {
     const [transform, setTransform] = useState({ x: 100, y: 50, zoom: 0.75 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -33,32 +83,24 @@ export default function KnowledgeGraphView({ nodes = [], edges = [], onNodeSelec
 
     const svgRef = useRef<SVGSVGElement | null>(null);
 
-    // Categories coordinates mapping (Columns Layout)
-    const categoryPositions: Record<string, { x: number; yStart: number; yGap: number }> = {
-        "Programming Basics": { x: 150, yStart: 120, yGap: 140 },
-        "Frontend": { x: 450, yStart: 80, yGap: 140 },
-        "Data Structures": { x: 750, yStart: 100, yGap: 130 },
-        "Algorithms": { x: 1050, yStart: 100, yGap: 130 },
-        "Databases": { x: 1350, yStart: 120, yGap: 150 },
-        "Backend & Systems": { x: 1650, yStart: 80, yGap: 120 },
-        "AI & Data Science": { x: 1950, yStart: 180, yGap: 160 },
-    };
+    // 4. Memoize coordinates mapping to prevent recalculating coordinates on drag/zoom
+    const nodeCoords = useMemo(() => {
+        const coords = new Map<string, { x: number; y: number }>();
+        const categoryCounts: Record<string, number> = {};
 
-    // Calculate node coordinate list
-    const nodeCoords = new Map<string, { x: number; y: number }>();
-    const categoryCounts: Record<string, number> = {};
+        nodes.forEach(node => {
+            const cat = node.category || "Programming Basics";
+            const layout = CATEGORY_POSITIONS[cat] || { x: 150, yStart: 100, yGap: 130 };
+            const index = categoryCounts[cat] || 0;
+            categoryCounts[cat] = index + 1;
 
-    nodes.forEach(node => {
-        const cat = node.category || "Programming Basics";
-        const layout = categoryPositions[cat] || { x: 150, yStart: 100, yGap: 130 };
-        const index = categoryCounts[cat] || 0;
-        categoryCounts[cat] = index + 1;
-
-        nodeCoords.set(node.id, {
-            x: layout.x + (index % 2 === 0 ? 0 : 25), // slight zigzag for spacing
-            y: layout.yStart + index * layout.yGap
+            coords.set(node.id, {
+                x: layout.x + (index % 2 === 0 ? 0 : 25), // slight zigzag for spacing
+                y: layout.yStart + index * layout.yGap
+            });
         });
-    });
+        return coords;
+    }, [nodes]);
 
     // Zoom Handlers
     const handleZoomIn = () => {
@@ -102,48 +144,8 @@ export default function KnowledgeGraphView({ nodes = [], edges = [], onNodeSelec
         }));
     };
 
-    // Get color themes for node categories / statuses
-    const getNodeTheme = (node: Node) => {
-        if (node.status) {
-            switch (node.status) {
-                case "Mastered":
-                    return { bg: "#f0fdf4", border: "#22c55e", text: "#166534" }; // green
-                case "Needs Review":
-                    return { bg: "#fffbeb", border: "#f59e0b", text: "#78350f" }; // yellow/orange
-                case "Ready to Learn":
-                    return { bg: "#eff6ff", border: "#3b82f6", text: "#1e40af" }; // blue
-                case "Locked":
-                    return { bg: "#f1f5f9", border: "#94a3b8", text: "#64748b" }; // grey
-            }
-        }
-        
-        switch (node.category) {
-            case "Programming Basics": return { bg: "#f0fdf4", border: "#22c55e", text: "#166534" }; // green
-            case "Frontend": return { bg: "#fdf4ff", border: "#d946ef", text: "#86198f" }; // purple
-            case "Data Structures": return { bg: "#eff6ff", border: "#3b82f6", text: "#1e40af" }; // blue
-            case "Algorithms": return { bg: "#fff7ed", border: "#f97316", text: "#9a3412" }; // orange
-            case "Databases": return { bg: "#fff1f2", border: "#f43f5e", text: "#9f1239" }; // rose
-            case "Backend & Systems": return { bg: "#faf5ff", border: "#a855f7", text: "#6b21a8" }; // violet
-            case "AI & Data Science": return { bg: "#f0fdfa", border: "#14b8a6", text: "#115e59" }; // teal
-            default: return { bg: "#f8fafc", border: "#64748b", text: "#334155" };
-        }
-    };
-
-    // Generate hand-drawn wobbly circle paths for nodes
-    const makeWobblyCircle = (cx: number, cy: number, r: number) => {
-        // Creates a wobbly circle by drawing 4 bezier curves with small offsets
-        const d1 = r * 0.04;
-        const d2 = r * 0.05;
-        const p1 = `M ${cx - r + d1} ${cy - d2}`;
-        const c1 = `C ${cx - r} ${cy - r - d1}, ${cx - d2} ${cy - r + d1}, ${cx} ${cy - r}`;
-        const c2 = `C ${cx + r - d1} ${cy - r - d2}, ${cx + r + d2} ${cy + d1}, ${cx + r} ${cy}`;
-        const c3 = `C ${cx + r - d2} ${cy + r + d1}, ${cx + d1} ${cy + r - d2}, ${cx} ${cy + r}`;
-        const c4 = `C ${cx - r - d1} ${cy + r + d2}, ${cx - r + d2} ${cy - d1}, ${cx - r + d1} ${cy - d2}`;
-        return `${p1} ${c1} ${c2} ${c3} ${c4} Z`;
-    };
-
     return (
-        <div className="w-full relative h-[600px] bg-[#fbf9f5] wobbly-border border-2 overflow-hidden select-none select-none">
+        <div className="w-full relative h-[600px] bg-[#fbf9f5] wobbly-border border-2 overflow-hidden select-none">
             {/* Toolbar Controls */}
             <div className="absolute top-4 left-4 z-10 flex gap-2">
                 <button
@@ -212,7 +214,7 @@ export default function KnowledgeGraphView({ nodes = [], edges = [], onNodeSelec
 
                 <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.zoom})`}>
                     {/* Render Category Columns Backdrop Guides */}
-                    {Object.entries(categoryPositions).map(([cat, pos]) => (
+                    {Object.entries(CATEGORY_POSITIONS).map(([cat, pos]) => (
                         <g key={cat} opacity={0.06}>
                             <line
                                 x1={pos.x}
@@ -393,4 +395,7 @@ export default function KnowledgeGraphView({ nodes = [], edges = [], onNodeSelec
             )}
         </div>
     );
-}
+});
+
+export default KnowledgeGraphView;
+

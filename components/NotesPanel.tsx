@@ -11,7 +11,7 @@ type Props = {
     ytPlayer: any; // YouTube player instance passed from parent
 };
 
-export default function NotesPanel({ courseId, chapterId, ytPlayer }: Props) {
+const NotesPanel = React.memo(function NotesPanel({ courseId, chapterId, ytPlayer }: Props) {
     const [activeTab, setActiveTab] = useState<"notes" | "bookmarks">("notes");
     
     // Hooks
@@ -354,4 +354,6 @@ export default function NotesPanel({ courseId, chapterId, ytPlayer }: Props) {
             `}</style>
         </div>
     );
-}
+});
+
+export default NotesPanel;

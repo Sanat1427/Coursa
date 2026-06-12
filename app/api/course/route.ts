@@ -8,17 +8,22 @@ export async function GET(req: NextRequest) {
     try {
         const courseId = req.nextUrl.searchParams.get('courseId');
         const user = await currentUser();
+        const userId = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress;
+
+        if (!userId) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
         if (!courseId) {
             const usercourses = await db.select().from(courseTable)
-                .where(eq(courseTable.userId, user?.primaryEmailAddress?.emailAddress as string)).orderBy(courseTable.createdAt);
+                .where(eq(courseTable.userId, userId)).orderBy(courseTable.createdAt);
             
             const courseIds = usercourses.map(c => c.courseId);
             if (courseIds.length > 0) {
                 const allProgress = await db.select().from(userProgressTable)
                     .where(
                         and(
-                            eq(userProgressTable.userId, user?.primaryEmailAddress?.emailAddress as string),
+                            eq(userProgressTable.userId, userId),
                             inArray(userProgressTable.courseId, courseIds)
                         )
                     );
@@ -41,13 +46,6 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json(coursesWithProgress);
             }
             return NextResponse.json(usercourses);
-        }
-
-
-        const userId = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || '';
-
-        if (!userId) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         console.log(`Fetching Course: ID=${courseId}, UserID=${userId}`);
@@ -79,8 +77,8 @@ export async function GET(req: NextRequest) {
             chapters: chapters
         });
     } catch (e: any) {
-        console.error("Internal Server Error: ", e);
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+        console.error("GET /api/course error: ", e);
+        return NextResponse.json({ error: "Internal Server Error", detail: e.message }, { status: 500 });
     }
 }
 

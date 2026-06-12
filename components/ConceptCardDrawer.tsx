@@ -9,7 +9,7 @@ type Props = {
     onClose: () => void;
 };
 
-export default function ConceptCardDrawer({ conceptId, isOpen, onClose }: Props) {
+const ConceptCardDrawer = React.memo(function ConceptCardDrawer({ conceptId, isOpen, onClose }: Props) {
     const [activeId, setActiveId] = useState<string | null>(conceptId);
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
@@ -198,4 +198,6 @@ export default function ConceptCardDrawer({ conceptId, isOpen, onClose }: Props)
             </div>
         </div>
     );
-}
+});
+
+export default ConceptCardDrawer;
