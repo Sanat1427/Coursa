@@ -698,7 +698,7 @@ export async function fetchYouTubeTranscript(videoId: string): Promise<string | 
         const html = await response.text();
         
         // Find ytInitialPlayerResponse
-        const regex = /ytInitialPlayerResponse\s*=\s*({.+?});/s;
+        const regex = /ytInitialPlayerResponse\s*=\s*({[\s\S]+?});/;
         const match = html.match(regex);
         if (!match) return null;
         

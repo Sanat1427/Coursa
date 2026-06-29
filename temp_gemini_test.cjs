@@ -1,119 +1,110 @@
-import { GoogleGenAI } from '@google/genai';
-import Groq from 'groq-sdk';
-import { db } from "./db";
-import { aiResponseCacheTable } from "./schema";
-import { eq, and } from "drizzle-orm";
-
-const geminiClient = new GoogleGenAI({
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.client = void 0;
+const genai_1 = require("@google/genai");
+const groq_sdk_1 = require("groq-sdk");
+const db_1 = require("./db");
+const schema_1 = require("./schema");
+const drizzle_orm_1 = require("drizzle-orm");
+const geminiClient = new genai_1.GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY
 });
-
 // Initialize Groq client if key is available
 const groqApiKey = process.env.GROQ_API_KEY;
-const groqClient = groqApiKey ? new Groq({ apiKey: groqApiKey }) : null;
-
+const groqClient = groqApiKey ? new groq_sdk_1.default({ apiKey: groqApiKey }) : null;
 // Clean and validate JSON string helper
-function tryCleanJSON(text: string): { success: boolean; data: any; cleanText: string } {
+function tryCleanJSON(text) {
     const sanitized = text.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim();
     try {
         const data = JSON.parse(sanitized);
         return { success: true, data, cleanText: sanitized };
-    } catch (e: any) {
+    }
+    catch (e) {
         console.warn(`[AI-Service] Standard JSON.parse failed: ${e?.message || e}. Attempting substring cleanup...`);
         // Try to find first '{' or '[' and last '}' or ']'
         const startBrace = sanitized.indexOf('{');
         const startBracket = sanitized.indexOf('[');
         let startIdx = -1;
         let endIdx = -1;
-        
         if (startBrace !== -1 && (startBracket === -1 || startBrace < startBracket)) {
             startIdx = startBrace;
             endIdx = sanitized.lastIndexOf('}');
-        } else if (startBracket !== -1) {
+        }
+        else if (startBracket !== -1) {
             startIdx = startBracket;
             endIdx = sanitized.lastIndexOf(']');
         }
-        
         if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
             const substring = sanitized.substring(startIdx, endIdx + 1);
             try {
                 const data = JSON.parse(substring);
                 console.log(`[AI-Service] Substring cleanup JSON parse succeeded.`);
                 return { success: true, data, cleanText: substring };
-            } catch (innerErr: any) {
+            }
+            catch (innerErr) {
                 console.error(`[AI-Service] Substring JSON.parse also failed: ${innerErr?.message || innerErr}`);
             }
         }
         return { success: false, data: null, cleanText: sanitized };
     }
 }
-
 // Generate context-aware safe default JSON payloads
-function getSafeFallbackJSON(prompt: string): string {
+function getSafeFallbackJSON(prompt) {
     const lower = prompt.toLowerCase();
-    
     // 1. Course layout prompt
     if (lower.includes("course name") || lower.includes("course type") || lower.includes("layout")) {
         console.log("[AI-Service] Dynamically constructing fallback course layout...");
-        
         // Extract topic
         let topic = "Selected Topic";
         const topicMatch = prompt.match(/course topic is:\s*([^,\n]+)/i);
         if (topicMatch && topicMatch[1]) {
             topic = topicMatch[1].trim();
-        } else {
+        }
+        else {
             const userInputMatch = prompt.match(/userInput:\s*([^,\n]+)/i);
             if (userInputMatch && userInputMatch[1]) {
                 topic = userInputMatch[1].trim();
             }
         }
-        
         // Clean topic string
         topic = topic.replace(/['"{}]+/g, '').trim();
         const capitalizedTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
-        
         // Classify topic category
         const topicLower = topic.toLowerCase();
         let category = "General Tech";
-        
         const langKeywords = ["c++", "csharp", "c#", "java", "python", "javascript", "typescript", "ruby", "rust", "golang", "php", "swift", "kotlin", "html", "css", "programming", "coding"];
         const dbKeywords = ["postgres", "sql", "mysql", "mongodb", "redis", "oracle", "sqlite", "mariadb", "cassandra", "database", "nosql"];
         const fwKeywords = ["react", "angular", "vue", "next.js", "nextjs", "spring boot", "springboot", "django", "laravel", "express", "nestjs", "svelte", "flutter", "framework"];
         const mlKeywords = ["machine learning", "ml", "deep learning", "ai", "artificial intelligence", "pytorch", "tensorflow", "neural", "nlp", "llm"];
         const sdKeywords = ["system design", "architecture", "microservices", "distributed", "scalability", "load balancer"];
         const devopsKeywords = ["docker", "kubernetes", "ansible", "terraform", "cicd", "devops", "containerization", "jenkins"];
-        
         if (langKeywords.some(kw => {
-            if (kw === "c++") return topicLower.includes("c++");
-            if (kw === "c#") return topicLower.includes("c#") || topicLower.includes("csharp");
+            if (kw === "c++")
+                return topicLower.includes("c++");
+            if (kw === "c#")
+                return topicLower.includes("c#") || topicLower.includes("csharp");
             return topicLower.includes(kw);
         })) {
             category = "Programming Language";
-        } else if (dbKeywords.some(kw => topicLower.includes(kw))) {
+        }
+        else if (dbKeywords.some(kw => topicLower.includes(kw))) {
             category = "Database";
-        } else if (fwKeywords.some(kw => topicLower.includes(kw))) {
+        }
+        else if (fwKeywords.some(kw => topicLower.includes(kw))) {
             category = "Framework";
-        } else if (mlKeywords.some(kw => topicLower.includes(kw))) {
+        }
+        else if (mlKeywords.some(kw => topicLower.includes(kw))) {
             category = "Machine Learning";
-        } else if (sdKeywords.some(kw => topicLower.includes(kw))) {
+        }
+        else if (sdKeywords.some(kw => topicLower.includes(kw))) {
             category = "System Design";
-        } else if (devopsKeywords.some(kw => topicLower.includes(kw))) {
+        }
+        else if (devopsKeywords.some(kw => topicLower.includes(kw))) {
             category = "DevOps";
         }
-        
         console.log(`[AI-Service] Fallback topic: "${capitalizedTopic}", Category: "${category}"`);
-        
         // Define blueprint based on category
-        let chaptersBlueprint: Array<{
-            chapterTitle: string;
-            learningObjective: string;
-            youtubeQuery: string;
-            fallbackQueries: string[];
-            keywords: string[];
-            webSearchQuery: string;
-            subContent: string[];
-        }> = [];
-        
+        let chaptersBlueprint = [];
         if (category === "Programming Language") {
             chaptersBlueprint = [
                 {
@@ -189,7 +180,8 @@ function getSafeFallbackJSON(prompt: string): string {
                     subContent: ["Classes and Constructors", "Inheritance and access modifiers", "Polymorphism and abstract interfaces"]
                 }
             ];
-        } else if (category === "Database") {
+        }
+        else if (category === "Database") {
             chaptersBlueprint = [
                 {
                     chapterTitle: `Introduction and Core Architecture of ${capitalizedTopic}`,
@@ -252,7 +244,8 @@ function getSafeFallbackJSON(prompt: string): string {
                     subContent: ["ACID principles", "Isolation levels: Read Committed, Serializable", "Shared and Exclusive locks"]
                 }
             ];
-        } else if (category === "Framework" || category === "Frontend" || category === "Backend") {
+        }
+        else if (category === "Framework" || category === "Frontend" || category === "Backend") {
             chaptersBlueprint = [
                 {
                     chapterTitle: `Core Concepts and Application Lifecycle of ${capitalizedTopic}`,
@@ -315,7 +308,8 @@ function getSafeFallbackJSON(prompt: string): string {
                     subContent: ["Compiling production bundles", "Asset minification and lazy loading", "Environment configuration parameters"]
                 }
             ];
-        } else if (category === "DevOps") {
+        }
+        else if (category === "DevOps") {
             chaptersBlueprint = [
                 {
                     chapterTitle: `Foundations and Core Architecture of ${capitalizedTopic}`,
@@ -378,7 +372,8 @@ function getSafeFallbackJSON(prompt: string): string {
                     subContent: ["Handling private variables and credentials", "Healthchecks and self-healing", "Resource limits and isolation settings"]
                 }
             ];
-        } else if (category === "System Design") {
+        }
+        else if (category === "System Design") {
             chaptersBlueprint = [
                 {
                     chapterTitle: "Foundations of Scalability and High Availability",
@@ -441,7 +436,8 @@ function getSafeFallbackJSON(prompt: string): string {
                     subContent: ["Designing a photo-sharing newsfeed (Instagram)", "Designing a ride-sharing dispatch (Uber)", "Designing a video streaming platform (Netflix)"]
                 }
             ];
-        } else if (category === "Machine Learning") {
+        }
+        else if (category === "Machine Learning") {
             chaptersBlueprint = [
                 {
                     chapterTitle: `Data Preprocessing and Feature Engineering in ${capitalizedTopic}`,
@@ -504,7 +500,8 @@ function getSafeFallbackJSON(prompt: string): string {
                     subContent: ["Precision, Recall, F1, and ROC-AUC metrics", "Cross-validation folds", "GridSearch and RandomSearch tuning"]
                 }
             ];
-        } else {
+        }
+        else {
             chaptersBlueprint = [
                 {
                     chapterTitle: `Fundamentals and Basics of ${capitalizedTopic}`,
@@ -544,17 +541,13 @@ function getSafeFallbackJSON(prompt: string): string {
                 }
             ];
         }
-        
         const courseIdMatch = prompt.match(/courseid:\s*([^,\n]+)/i) || prompt.match(/courseId:\s*([^,\n]+)/i);
         const courseId = courseIdMatch ? courseIdMatch[1].trim() : "backup-course";
-        
         const languageMatch = prompt.match(/language:\s*([^,\n]+)/i) || prompt.match(/language:\s*([^,\n]+)/i);
         const lang = languageMatch ? languageMatch[1].trim() : "English";
-        
         const finalChapters = chaptersBlueprint.map((ch, index) => {
             const chId = `ch${index + 1}`;
             const targetLangSuffix = lang.toLowerCase() !== "english" ? ` in ${lang}` : "";
-            
             return {
                 chapterId: chId,
                 chapterTitle: ch.chapterTitle,
@@ -568,7 +561,6 @@ function getSafeFallbackJSON(prompt: string): string {
                 subContent: ch.subContent
             };
         });
-        
         return JSON.stringify({
             courseId: courseId,
             courseName: `${capitalizedTopic} Course`,
@@ -578,7 +570,6 @@ function getSafeFallbackJSON(prompt: string): string {
             chapters: finalChapters
         });
     }
-    
     // 2. Quiz generation prompt
     if (lower.includes("quiz") || (lower.includes("multiple_choice") && lower.includes("questions"))) {
         console.log("[AI-Service] Returning safe quiz fallback JSON.");
@@ -603,7 +594,6 @@ function getSafeFallbackJSON(prompt: string): string {
             ]
         });
     }
-
     // 3. Chapter summary / worked examples prompt
     if (lower.includes("workedexamples") || lower.includes("summary")) {
         console.log("[AI-Service] Returning safe summary/examples fallback JSON.");
@@ -618,7 +608,6 @@ function getSafeFallbackJSON(prompt: string): string {
             ]
         });
     }
-
     // 4. Concept extraction prompt
     if (lower.includes("concepts") && lower.includes("relationships")) {
         console.log("[AI-Service] Returning safe concept extraction fallback JSON.");
@@ -637,7 +626,6 @@ function getSafeFallbackJSON(prompt: string): string {
             "relationships": []
         });
     }
-    
     // 5. Revision questions (usually array)
     if (lower.includes("definition") && lower.includes("scenario")) {
         console.log("[AI-Service] Returning safe revision questions list fallback JSON.");
@@ -656,22 +644,11 @@ function getSafeFallbackJSON(prompt: string): string {
             }
         ]);
     }
-    
     // Default fallback
     console.log("[AI-Service] Returning safe generic fallback JSON.");
     return JSON.stringify({});
 }
-
-interface ProviderHealth {
-    status: 'healthy' | 'unhealthy';
-    consecutiveFailures: number;
-    lastFailureTime: number | null;
-}
-
-const globalForHealth = global as unknown as {
-    _aiProviderHealth?: Record<string, ProviderHealth>;
-};
-
+const globalForHealth = global;
 if (!globalForHealth._aiProviderHealth) {
     globalForHealth._aiProviderHealth = {
         gemini: { status: 'healthy', consecutiveFailures: 0, lastFailureTime: null },
@@ -680,11 +657,10 @@ if (!globalForHealth._aiProviderHealth) {
 }
 const healthRegistry = globalForHealth._aiProviderHealth;
 const COOLDOWN_MS = 30000; // 30 seconds cooldown
-
-function isProviderHealthy(provider: 'gemini' | 'groq'): boolean {
+function isProviderHealthy(provider) {
     const health = healthRegistry[provider];
-    if (health.status === 'healthy') return true;
-    
+    if (health.status === 'healthy')
+        return true;
     // Check if cooldown has elapsed
     if (health.lastFailureTime && (Date.now() - health.lastFailureTime > COOLDOWN_MS)) {
         console.log(`[AI-Router] Cooldown elapsed for unhealthy provider ${provider}. Resetting status to healthy.`);
@@ -694,15 +670,13 @@ function isProviderHealthy(provider: 'gemini' | 'groq'): boolean {
     }
     return false;
 }
-
-function recordSuccess(provider: 'gemini' | 'groq') {
+function recordSuccess(provider) {
     const health = healthRegistry[provider];
     health.status = 'healthy';
     health.consecutiveFailures = 0;
     health.lastFailureTime = null;
 }
-
-function recordFailure(provider: 'gemini' | 'groq') {
+function recordFailure(provider) {
     const health = healthRegistry[provider];
     health.consecutiveFailures += 1;
     health.lastFailureTime = Date.now();
@@ -711,69 +685,66 @@ function recordFailure(provider: 'gemini' | 'groq') {
         console.warn(`[AI-Router] Provider ${provider} marked UNHEALTHY due to ${health.consecutiveFailures} consecutive failures.`);
     }
 }
-
-interface PromptMetadata {
-    topic: string;
-    language: string;
-    difficulty: string;
-    contentType: string;
-}
-
-function detectMetadata(contents: any, systemInstruction?: string): PromptMetadata {
+function detectMetadata(contents, systemInstruction) {
     const text = (typeof contents === 'string' ? contents : JSON.stringify(contents)) + '\n' + (systemInstruction || '');
     const textLower = text.toLowerCase();
-    
     // 1. Detect contentType
     let contentType = 'general';
     if (textLower.includes('quiz') || textLower.includes('multiple_choice') || textLower.includes('questiontext')) {
         contentType = 'quiz';
-    } else if (textLower.includes('flashcard') || textLower.includes('front') || textLower.includes('back') || textLower.includes('leitner')) {
+    }
+    else if (textLower.includes('flashcard') || textLower.includes('front') || textLower.includes('back') || textLower.includes('leitner')) {
         contentType = 'flashcard';
-    } else if (textLower.includes('course name') || textLower.includes('chapters') || textLower.includes('course description') || textLower.includes('learningobjective')) {
+    }
+    else if (textLower.includes('course name') || textLower.includes('chapters') || textLower.includes('course description') || textLower.includes('learningobjective')) {
         contentType = 'course';
-    } else if (textLower.includes('summary') || textLower.includes('workedexamples') || textLower.includes('worked examples')) {
+    }
+    else if (textLower.includes('summary') || textLower.includes('workedexamples') || textLower.includes('worked examples')) {
         contentType = 'summary';
-    } else if (textLower.includes('concept') || textLower.includes('concepts') || textLower.includes('whyitmatters')) {
+    }
+    else if (textLower.includes('concept') || textLower.includes('concepts') || textLower.includes('whyitmatters')) {
         contentType = 'concept';
-    } else if (/\b(relationship|graph|nodes|edges)\b/i.test(textLower) || (textLower.includes('relationship') && !textLower.includes('paragraphs'))) {
+    }
+    else if (/\b(relationship|graph|nodes|edges)\b/i.test(textLower) || (textLower.includes('relationship') && !textLower.includes('paragraphs'))) {
         contentType = 'graph';
-    } else if (textLower.includes('transcript') || textLower.includes('subtitles') || textLower.includes('video transcript')) {
+    }
+    else if (textLower.includes('transcript') || textLower.includes('subtitles') || textLower.includes('video transcript')) {
         contentType = 'transcript';
     }
-    
     // 2. Detect language
     let language = 'English';
     const langMatch = text.match(/language:\s*([a-zA-Z]+)/i) || text.match(/in\s+([a-zA-Z]+)\s+language/i);
     if (langMatch && langMatch[1]) {
         language = langMatch[1].trim();
     }
-    
     // 3. Detect difficulty
     let difficulty = 'Beginner';
     if (textLower.includes('difficulty: advanced') || textLower.includes('advanced level') || textLower.includes('level: advanced')) {
         difficulty = 'Advanced';
-    } else if (textLower.includes('difficulty: intermediate') || textLower.includes('intermediate level') || textLower.includes('level: intermediate')) {
+    }
+    else if (textLower.includes('difficulty: intermediate') || textLower.includes('intermediate level') || textLower.includes('level: intermediate')) {
         difficulty = 'Intermediate';
     }
-    
     // 4. Detect topic
     let topic = 'General';
-    const topicMatch = 
-        text.match(/topic is:\s*([^,\n]+)/i) || 
+    const topicMatch = text.match(/topic is:\s*([^,\n]+)/i) ||
         text.match(/topic:\s*([^,\n]+)/i) ||
         text.match(/userInput:\s*([^,\n]+)/i);
     if (topicMatch && topicMatch[1]) {
         topic = topicMatch[1].replace(/['"{}]+/g, '').trim();
-    } else {
+    }
+    else {
         // Try to find double-quoted string of length >= 3 first
         const quotedMatch = text.match(/"([^"]{3,})"/);
         if (quotedMatch && quotedMatch[1]) {
             topic = quotedMatch[1].trim();
-        } else {
+        }
+        else {
             const singleQuotedMatch = text.match(/'([^']{3,})'/);
             if (singleQuotedMatch && singleQuotedMatch[1]) {
                 topic = singleQuotedMatch[1].trim();
-            } else {
+            }
+            else {
                 const cleanText = text.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
                 if (cleanText.length > 0) {
                     topic = cleanText.split(' ').slice(0, 4).join(' ');
@@ -781,66 +752,43 @@ function detectMetadata(contents: any, systemInstruction?: string): PromptMetada
             }
         }
     }
-    
     return { contentType, language, difficulty, topic };
 }
-
-function normalizeKey(str: string): string {
+function normalizeKey(str) {
     return str.trim().toLowerCase();
 }
-
-async function lookupResponseCache(meta: PromptMetadata): Promise<string | null> {
+async function lookupResponseCache(meta) {
     try {
         const normTopic = normalizeKey(meta.topic);
         const normLanguage = normalizeKey(meta.language);
         const normDifficulty = normalizeKey(meta.difficulty);
         const normContentType = normalizeKey(meta.contentType);
-        
         console.log(`[AI-Router] Cache lookup: topic="${normTopic}", lang="${normLanguage}", diff="${normDifficulty}", type="${normContentType}"...`);
-        
-        const cached = await db.select()
-            .from(aiResponseCacheTable)
-            .where(
-                and(
-                    eq(aiResponseCacheTable.topic, normTopic),
-                    eq(aiResponseCacheTable.language, normLanguage),
-                    eq(aiResponseCacheTable.difficulty, normDifficulty),
-                    eq(aiResponseCacheTable.contentType, normContentType)
-                )
-            )
+        const cached = await db_1.db.select()
+            .from(schema_1.aiResponseCacheTable)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.aiResponseCacheTable.topic, normTopic), (0, drizzle_orm_1.eq)(schema_1.aiResponseCacheTable.language, normLanguage), (0, drizzle_orm_1.eq)(schema_1.aiResponseCacheTable.difficulty, normDifficulty), (0, drizzle_orm_1.eq)(schema_1.aiResponseCacheTable.contentType, normContentType)))
             .limit(1);
-            
         if (cached.length > 0) {
             console.log(`[AI-Router] Cache HIT! Returning cached response.`);
             return cached[0].response;
         }
         console.log(`[AI-Router] Cache MISS.`);
         return null;
-    } catch (e: any) {
+    }
+    catch (e) {
         console.error(`[AI-Router] Cache lookup error:`, e?.message || e);
         return null;
     }
 }
-
-async function saveResponseCache(meta: PromptMetadata, responseText: string): Promise<void> {
+async function saveResponseCache(meta, responseText) {
     try {
         const normTopic = normalizeKey(meta.topic);
         const normLanguage = normalizeKey(meta.language);
         const normDifficulty = normalizeKey(meta.difficulty);
         const normContentType = normalizeKey(meta.contentType);
-        
         console.log(`[AI-Router] Saving successful response to cache...`);
-        
-        await db.delete(aiResponseCacheTable).where(
-            and(
-                eq(aiResponseCacheTable.topic, normTopic),
-                eq(aiResponseCacheTable.language, normLanguage),
-                eq(aiResponseCacheTable.difficulty, normDifficulty),
-                eq(aiResponseCacheTable.contentType, normContentType)
-            )
-        );
-        
-        await db.insert(aiResponseCacheTable).values({
+        await db_1.db.delete(schema_1.aiResponseCacheTable).where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.aiResponseCacheTable.topic, normTopic), (0, drizzle_orm_1.eq)(schema_1.aiResponseCacheTable.language, normLanguage), (0, drizzle_orm_1.eq)(schema_1.aiResponseCacheTable.difficulty, normDifficulty), (0, drizzle_orm_1.eq)(schema_1.aiResponseCacheTable.contentType, normContentType)));
+        await db_1.db.insert(schema_1.aiResponseCacheTable).values({
             topic: normTopic,
             language: normLanguage,
             difficulty: normDifficulty,
@@ -849,55 +797,42 @@ async function saveResponseCache(meta: PromptMetadata, responseText: string): Pr
             updatedAt: new Date()
         });
         console.log(`[AI-Router] Cached response saved successfully.`);
-    } catch (e: any) {
+    }
+    catch (e) {
         console.error(`[AI-Router] Saving to cache error:`, e?.message || e);
     }
 }
-
-interface AttemptRoute {
-    provider: 'gemini' | 'groq';
-    model: string;
-}
-
-function mapModelId(model: string): string {
-    if (model === 'qwen3-32b') return 'qwen/qwen3-32b';
+function mapModelId(model) {
+    if (model === 'qwen3-32b')
+        return 'qwen/qwen3-32b';
     return model;
 }
-
-function getRoutingSequence(contentType: string): AttemptRoute[] {
+function getRoutingSequence(contentType) {
     const isGroqFirst = ['course', 'quiz', 'flashcard'].includes(contentType);
-    
     // Preferred order for models inside each provider
     const geminiModels = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
     const groqModels = ['qwen3-32b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
-    
-    const sequence: AttemptRoute[] = [];
+    const sequence = [];
     if (isGroqFirst) {
         groqModels.forEach(m => sequence.push({ provider: 'groq', model: m }));
         geminiModels.forEach(m => sequence.push({ provider: 'gemini', model: m }));
-    } else {
+    }
+    else {
         geminiModels.forEach(m => sequence.push({ provider: 'gemini', model: m }));
         groqModels.forEach(m => sequence.push({ provider: 'groq', model: m }));
     }
     return sequence;
 }
-
-async function executeWithRetry<T>(
-    provider: 'gemini' | 'groq',
-    modelName: string,
-    action: () => Promise<T>,
-    maxRetries = 1,
-    initialDelay = 1000
-): Promise<T> {
+async function executeWithRetry(provider, modelName, action, maxRetries = 1, initialDelay = 1000) {
     let attempts = 0;
     while (attempts <= maxRetries) {
         try {
             attempts++;
             return await action();
-        } catch (error: any) {
+        }
+        catch (error) {
             const errorMsg = error?.message || String(error);
-            const isTransient = 
-                error?.status === 429 || 
+            const isTransient = error?.status === 429 ||
                 error?.status === 503 ||
                 error?.statusCode === 429 ||
                 error?.statusCode === 503 ||
@@ -906,38 +841,21 @@ async function executeWithRetry<T>(
                 errorMsg.toLowerCase().includes('rate limit') ||
                 errorMsg.toLowerCase().includes('resource_exhausted') ||
                 errorMsg.toLowerCase().includes('overloaded');
-                
             if (attempts <= maxRetries && isTransient) {
                 const backoff = initialDelay * Math.pow(2, attempts - 1);
                 console.warn(`[AI-Router] Transient error on provider ${provider} (model: ${modelName}). Retrying in ${backoff}ms... (Attempt ${attempts}/${maxRetries})`);
                 await new Promise(resolve => setTimeout(resolve, backoff));
-            } else {
+            }
+            else {
                 throw error;
             }
         }
     }
     throw new Error(`Execution failed after ${maxRetries} retries`);
 }
-
-export const client = {
+exports.client = {
     models: {
-        async generateContent(params: {
-            model?: string;
-            contents: any;
-            topic?: string;
-            language?: string;
-            difficulty?: string;
-            contentType?: string;
-            config?: {
-                systemInstruction?: string;
-                responseMimeType?: string;
-                topic?: string;
-                language?: string;
-                difficulty?: string;
-                contentType?: string;
-                [key: string]: any;
-            }
-        }) {
+        async generateContent(params) {
             // 1. Detect prompt metadata
             const detected = detectMetadata(params.contents, params.config?.systemInstruction);
             const topic = params.config?.topic || params.topic || detected.topic;
@@ -945,9 +863,7 @@ export const client = {
             const difficulty = params.config?.difficulty || params.difficulty || detected.difficulty;
             const contentType = params.config?.contentType || params.contentType || detected.contentType;
             const meta = { topic, language, difficulty, contentType };
-            
             console.log(`[AI-Router] Parsed Request metadata:`, JSON.stringify(meta));
-
             // 2. Check Cache first (Cache-Aside)
             const cachedResultText = await lookupResponseCache(meta);
             if (cachedResultText) {
@@ -956,32 +872,25 @@ export const client = {
                     candidates: [{ content: { parts: [{ text: cachedResultText }] } }]
                 };
             }
-
             // 3. Determine Routing Sequence
             const routeSequence = getRoutingSequence(contentType);
             console.log(`[AI-Router] Routing sequence for type "${contentType}":`, routeSequence.map(r => `${r.provider}:${r.model}`).join(' -> '));
-
             let finalResultText = '';
             let success = false;
-            let lastError: any = null;
-
+            let lastError = null;
             for (let i = 0; i < routeSequence.length; i++) {
                 const route = routeSequence[i];
-                
                 // Health Check
                 if (!isProviderHealthy(route.provider)) {
                     console.warn(`[AI-Router] Skipping unhealthy provider: ${route.provider} (model: ${route.model})`);
                     continue;
                 }
-
                 if (route.provider === 'groq' && !groqClient) {
                     console.warn(`[AI-Router] Skipping Groq route because groqClient is not configured.`);
                     continue;
                 }
-
                 try {
                     console.log(`[AI-Router] Attempting execution: provider=${route.provider}, model=${route.model} (Step ${i + 1}/${routeSequence.length})...`);
-                    
                     if (route.provider === 'gemini') {
                         const response = await executeWithRetry('gemini', route.model, async () => {
                             return await geminiClient.models.generateContent({
@@ -990,43 +899,40 @@ export const client = {
                                 config: params.config
                             });
                         });
-                        
                         finalResultText = response.text || '';
-                    } else {
+                    }
+                    else {
                         // Groq execution
                         const mappedModel = mapModelId(route.model);
                         const systemPrompt = params.config?.systemInstruction || '';
                         let userPrompt = '';
                         if (typeof params.contents === 'string') {
                             userPrompt = params.contents;
-                        } else if (Array.isArray(params.contents)) {
-                            userPrompt = params.contents.map((part: any) => part.text || JSON.stringify(part)).join('\n');
-                        } else {
+                        }
+                        else if (Array.isArray(params.contents)) {
+                            userPrompt = params.contents.map((part) => part.text || JSON.stringify(part)).join('\n');
+                        }
+                        else {
                             userPrompt = JSON.stringify(params.contents);
                         }
-
-                        const messages: any[] = [];
+                        const messages = [];
                         if (systemPrompt) {
                             messages.push({ role: 'system', content: systemPrompt });
                         }
                         messages.push({ role: 'user', content: userPrompt });
-
-                        const responseFormat = params.config?.responseMimeType === 'application/json' 
-                            ? { type: 'json_object' as const } 
+                        const responseFormat = params.config?.responseMimeType === 'application/json'
+                            ? { type: 'json_object' }
                             : undefined;
-
                         const chatCompletion = await executeWithRetry('groq', route.model, async () => {
-                            return await groqClient!.chat.completions.create({
+                            return await groqClient.chat.completions.create({
                                 messages,
                                 model: mappedModel,
                                 temperature: 0.2,
                                 response_format: responseFormat,
                             });
                         });
-
                         finalResultText = chatCompletion.choices[0]?.message?.content || '';
                     }
-
                     // Validate output format if JSON is requested
                     if (params.config?.responseMimeType === 'application/json') {
                         console.log(`[AI-Router] Validating JSON response from provider=${route.provider}, model=${route.model}...`);
@@ -1037,32 +943,29 @@ export const client = {
                         console.log(`[AI-Router] JSON response successfully validated.`);
                         finalResultText = parseResult.cleanText;
                     }
-
                     // Log success and reset provider health
                     console.log(`[AI-Router] Execution SUCCESS with provider=${route.provider}, model=${route.model}`);
                     recordSuccess(route.provider);
                     success = true;
                     break;
-                } catch (error: any) {
+                }
+                catch (error) {
                     lastError = error;
                     console.error(`[AI-Router] Error with provider=${route.provider}, model=${route.model}:`, error?.message || error);
                     recordFailure(route.provider);
                 }
             }
-
             // 4. Handle Router Failures
             if (success) {
                 // Save successful result to Cache asynchronously
                 saveResponseCache(meta, finalResultText).catch(e => {
                     console.error(`[AI-Router] Async cache save failed:`, e);
                 });
-
                 return {
                     text: finalResultText,
                     candidates: [{ content: { parts: [{ text: finalResultText }] } }]
                 };
             }
-
             // Fallback Order step 4: Check Cache as a final safety net
             console.error(`[AI-Router] All providers failed. Querying Cache as final safety net...`);
             const fallbackCachedText = await lookupResponseCache(meta);
@@ -1073,15 +976,15 @@ export const client = {
                     candidates: [{ content: { parts: [{ text: fallbackCachedText }] } }]
                 };
             }
-
             // If no cache, fall back to mock default responses depending on prompt type
             console.error(`[AI-Router] All providers and Cache failed. Falling back to local blueprint mock JSON.`);
             if (params.config?.responseMimeType === 'application/json') {
                 let userPrompt = '';
                 if (typeof params.contents === 'string') {
                     userPrompt = params.contents;
-                } else if (Array.isArray(params.contents)) {
-                    userPrompt = params.contents.map((part: any) => part.text || JSON.stringify(part)).join('\n');
+                }
+                else if (Array.isArray(params.contents)) {
+                    userPrompt = params.contents.map((part) => part.text || JSON.stringify(part)).join('\n');
                 }
                 const fallbackJSON = getSafeFallbackJSON(userPrompt + "\n" + (params.config?.systemInstruction || ''));
                 return {
@@ -1089,7 +992,6 @@ export const client = {
                     candidates: [{ content: { parts: [{ text: fallbackJSON }] } }]
                 };
             }
-
             return {
                 text: "",
                 candidates: [{ content: { parts: [{ text: "" }] } }]

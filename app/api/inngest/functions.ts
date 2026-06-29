@@ -7,6 +7,7 @@ import { fetchGoogleSearchMaterials } from "@/lib/googleSearch";
 // TODO: Re-enable in future release
 // import { RetentionService } from "@/lib/retentionService";
 import { eq } from "drizzle-orm";
+import { buildChapterSummaryPrompt, parseAndValidateChapterContent, saveChapterContent } from "@/lib/chapterService";
 
 export const generateVideoContentJob = inngest.createFunction(
     { id: "generate-video-content", triggers: [{ event: "video/generate" }] },
@@ -103,28 +104,7 @@ export const processChapterJob = inngest.createFunction(
         if (!summary || workedExamples.length === 0) {
             const generated = await step.run("generate-summary-examples", async () => {
                 const subContent = (chapterData.videoContent as any)?.subContent || [];
-                const prompt = `
-You are an expert instructor in software engineering.
-For the chapter titled "${chapterTitle}" covering: ${JSON.stringify(subContent)}.
-Generate:
-1. An engaging, clear, and comprehensive Chapter Summary (2-3 paragraphs explaining the core principles, why they matter, and how they fit into the broader system).
-2. A list of 2-3 Worked Examples. Each example must have:
-   - title: Title of the example
-   - code: Actual clean code snippet (in JavaScript, Python, or TypeScript) or step-by-step logic
-   - explanation: In-depth explanation of how it works and the logic behind it
-
-Return the response ONLY as a valid JSON object matching the schema:
-{
-  "summary": "Summary text...",
-  "workedExamples": [
-    {
-      "title": "Example Title",
-      "code": "code snippet...",
-      "explanation": "Explanation..."
-    }
-  ]
-}
-`;
+                const prompt = buildChapterSummaryPrompt(chapterTitle, subContent);
                 const resp = await client.models.generateContent({
                     model: 'gemini-2.5-flash',
                     contents: prompt,
@@ -136,20 +116,14 @@ Return the response ONLY as a valid JSON object matching the schema:
                 });
 
                 const rawResult = resp.text || '';
-                const sanitizedResult = rawResult.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-                return JSON.parse(sanitizedResult);
+                return parseAndValidateChapterContent(rawResult);
             });
 
-            summary = generated.summary || "Summary generated.";
-            workedExamples = generated.workedExamples || [];
-
-            materials.summary = summary;
-            materials.workedExamples = workedExamples;
+            summary = generated.summary;
+            workedExamples = generated.workedExamples;
 
             await step.run("save-summary-examples", async () => {
-                await db.update(chaptersTable)
-                    .set({ contentMaterials: materials })
-                    .where(eq(chaptersTable.chapterId, chapterId));
+                await saveChapterContent(chapterId, generated);
             });
         }
 

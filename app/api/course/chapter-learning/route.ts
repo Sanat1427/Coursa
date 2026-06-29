@@ -8,6 +8,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { fetchValidatedYouTubeVideo } from "@/lib/youtube";
 import { fetchGoogleSearchMaterials } from "@/lib/googleSearch";
 import { inngest } from "@/lib/inngest";
+import { buildChapterSummaryPrompt, parseAndValidateChapterContent, saveChapterContent } from "@/lib/chapterService";
 
 export async function GET(req: NextRequest) {
     try {
@@ -43,10 +44,12 @@ export async function GET(req: NextRequest) {
             .where(eq(chaptersTable.chapterId, chapterId))
             .limit(1);
 
-        let chapterRow;
+        let chapterRow = chapterRows[0];
 
-        if (chapterRows.length === 0) {
-            console.log(`[CACHE MISS] Generating initial media content for chapter: ${chapterId}`);
+        const isMediaMissing = !chapterRow || !chapterRow.youtubeVideoId;
+
+        if (isMediaMissing) {
+            console.log(`[MEDIA MISS] Generating initial media content for chapter: ${chapterId}`);
             // Find chapter in course layout safely
             const layoutChapters = (courseRow?.courseLayout as any)?.chapters || [];
             const chapterFromLayout = layoutChapters.find((ch: any) => `${courseId}-${ch.chapterId || ch.id}` === chapterId);
@@ -75,15 +78,24 @@ export async function GET(req: NextRequest) {
             if (cachedChapters.length > 0 && cachedChapters[0].youtubeVideoId) {
                 console.log("[CACHE HIT] Reusing existing chapter content for:", chapterFromLayout.chapterTitle);
                 const cached = cachedChapters[0];
-                const inserted = await db.insert(chaptersTable).values({
-                    courseId,
-                    chapterId,
-                    chapterTitle: cached.chapterTitle,
-                    youtubeVideoId: cached.youtubeVideoId,
-                    contentMaterials: cached.contentMaterials,
-                    videoContent: cached.videoContent || { subContent: chapterFromLayout.subContent || [] }
-                }).returning();
-                chapterRow = inserted[0];
+                if (chapterRow) {
+                    const updated = await db.update(chaptersTable).set({
+                        youtubeVideoId: cached.youtubeVideoId,
+                        contentMaterials: cached.contentMaterials,
+                        videoContent: cached.videoContent || { subContent: chapterFromLayout.subContent || [] }
+                    }).where(eq(chaptersTable.chapterId, chapterId)).returning();
+                    chapterRow = updated[0];
+                } else {
+                    const inserted = await db.insert(chaptersTable).values({
+                        courseId,
+                        chapterId,
+                        chapterTitle: cached.chapterTitle,
+                        youtubeVideoId: cached.youtubeVideoId,
+                        contentMaterials: cached.contentMaterials,
+                        videoContent: cached.videoContent || { subContent: chapterFromLayout.subContent || [] }
+                    }).returning();
+                    chapterRow = inserted[0];
+                }
             } else {
                 console.log("[GENERATING] Running YouTube and Google Custom Search APIs for:", chapterFromLayout.chapterTitle);
                 const searchQuery = chapterFromLayout.webSearchQuery || `${courseRow.courseName} ${chapterFromLayout.chapterTitle}`;
@@ -97,24 +109,37 @@ export async function GET(req: NextRequest) {
                 const videoMetadata = typeof videoResult === "string" ? {} : (videoResult || {});
                 const materials = { articles };
 
-                const inserted = await db.insert(chaptersTable).values({
-                    courseId,
-                    chapterId,
-                    chapterTitle: chapterFromLayout.chapterTitle,
-                    youtubeVideoId: youtubeVideoId,
-                    contentMaterials: materials,
-                    videoContent: { 
-                        subContent: chapterFromLayout.subContent || [],
-                        videoLanguage: videoMetadata.videoLanguage || "English",
-                        isFallback: videoMetadata.isFallback || false,
-                        fallbackMessage: videoMetadata.fallbackMessage || "",
-                        alternativeVideos: videoMetadata.alternativeVideos || []
-                    }
-                }).returning();
-                chapterRow = inserted[0];
+                if (chapterRow) {
+                    const updated = await db.update(chaptersTable).set({
+                        youtubeVideoId: youtubeVideoId,
+                        contentMaterials: materials,
+                        videoContent: { 
+                            subContent: chapterFromLayout.subContent || [],
+                            videoLanguage: videoMetadata.videoLanguage || "English",
+                            isFallback: videoMetadata.isFallback || false,
+                            fallbackMessage: videoMetadata.fallbackMessage || "",
+                            alternativeVideos: videoMetadata.alternativeVideos || []
+                        }
+                    }).where(eq(chaptersTable.chapterId, chapterId)).returning();
+                    chapterRow = updated[0];
+                } else {
+                    const inserted = await db.insert(chaptersTable).values({
+                        courseId,
+                        chapterId,
+                        chapterTitle: chapterFromLayout.chapterTitle,
+                        youtubeVideoId: youtubeVideoId,
+                        contentMaterials: materials,
+                        videoContent: { 
+                            subContent: chapterFromLayout.subContent || [],
+                            videoLanguage: videoMetadata.videoLanguage || "English",
+                            isFallback: videoMetadata.isFallback || false,
+                            fallbackMessage: videoMetadata.fallbackMessage || "",
+                            alternativeVideos: videoMetadata.alternativeVideos || []
+                        }
+                    }).returning();
+                    chapterRow = inserted[0];
+                }
             }
-        } else {
-            chapterRow = chapterRows[0];
         }
 
         if (!chapterRow) {
@@ -173,7 +198,7 @@ export async function GET(req: NextRequest) {
         const linkedConceptsList: any[] = [];
         const existingQuestions: any[] = [];
         const schedules: any[] = [];
-        const readiness = { concepts: [], relationships: [] };
+        const readiness = { concepts: [] as any[], relationships: [] as any[] };
 
         // Filter concepts linked to this chapter safely
         const linkedIds = new Set((linkedConceptsList || []).map(l => l.conceptId));
@@ -249,28 +274,8 @@ export async function GET(req: NextRequest) {
                                 if (!localSummary || localExamples.length === 0) {
                                     console.log(`[Local Fallback] Generating summary & examples for: ${chapterRow.chapterTitle}`);
                                     const subContent = (chapterRow.videoContent as any)?.subContent || [];
-                                    const prompt = `
-You are an expert instructor in software engineering.
-For the chapter titled "${chapterRow.chapterTitle}" covering: ${JSON.stringify(subContent)}.
-Generate:
-1. An engaging, clear, and comprehensive Chapter Summary (2-3 paragraphs explaining the core principles, why they matter, and how they fit into the broader system).
-2. A list of 2-3 Worked Examples. Each example must have:
-   - title: Title of the example
-   - code: Actual clean code snippet (in JavaScript, Python, or TypeScript) or step-by-step logic
-   - explanation: In-depth explanation of how it works and the logic behind it
-
-Return the response ONLY as a valid JSON object matching the schema:
-{
-  "summary": "Summary text...",
-  "workedExamples": [
-    {
-      "title": "Example Title",
-      "code": "code snippet...",
-      "explanation": "Explanation..."
-    }
-  ]
-}
-`;
+                                    const prompt = buildChapterSummaryPrompt(chapterRow.chapterTitle, subContent);
+                                    
                                     const resp = await client.models.generateContent({
                                         model: 'gemini-2.5-flash',
                                         contents: prompt,
@@ -282,18 +287,12 @@ Return the response ONLY as a valid JSON object matching the schema:
                                     });
 
                                     const rawResult = resp.text || '';
-                                    const sanitizedResult = rawResult.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-                                    const data = JSON.parse(sanitizedResult);
+                                    const content = parseAndValidateChapterContent(rawResult);
 
-                                    localSummary = data.summary || "Summary generated.";
-                                    localExamples = data.workedExamples || [];
+                                    await saveChapterContent(chapterId, content);
 
-                                    currentMaterials.summary = localSummary;
-                                    currentMaterials.workedExamples = localExamples;
-
-                                    await db.update(chaptersTable)
-                                        .set({ contentMaterials: currentMaterials })
-                                        .where(eq(chaptersTable.chapterId, chapterId));
+                                    localSummary = content.summary;
+                                    localExamples = content.workedExamples;
                                     console.log(`[Local Fallback] Summary & worked examples generated successfully.`);
                                 }
 

@@ -15,6 +15,7 @@
 
 ## 📖 Overview
 
+<<<<<<< HEAD
 Most online learning platforms suffer from:
 
 * Unstructured YouTube playlists
@@ -34,6 +35,34 @@ Users can:
 * Track progress
 * Create notes
 * Learn in multiple languages
+=======
+- [1. Project Overview](#2-project-overview)
+- [2. Demo](#3-demo)
+- [3. Key Features](#4-key-features)
+- [4. System Architecture](#5-system-architecture)
+- [5. High-Level Design (HLD)](#6-high-level-design-hld)
+- [6. Application Flow](#7-application-flow)
+- [7. Database Design & Relational Schema](#8-database-design--relational-schema)
+- [8. Folder Structure](#9-folder-structure)
+- [9. Tech Stack Selection](#10-tech-stack-selection)
+- [10. API Documentation](#11-api-documentation)
+- [11. AI Architecture & Fallback Strategy](#12-ai-architecture--fallback-strategy)
+- [12. Knowledge Graph Design](#13-knowledge-graph-design)
+- [13. Revision Engine & SM-2 Spaced Repetition](#14-revision-engine--sm-2-spaced-repetition)
+- [14. Security Design](#15-security-design)
+- [15. Performance Optimizations](#16-performance-optimizations)
+- [16. Scalability Architecture](#17-scalability-architecture)
+- [17. Design Decisions & Trade-offs](#18-design-decisions--trade-offs)
+- [18. SDE Interview Talking Points](#19-sde-interview-talking-points)
+- [19. Technical Challenges & Solutions](#20-technical-challenges--solutions)
+- [20. Local Development Setup](#21-local-development-setup)
+- [21. Deployment Architecture](#22-deployment-architecture)
+- [22. Project Roadmap](#23-project-roadmap)
+- [23. Contributing](#24-contributing)
+- [24. License](#25-license)
+- [25. Author & Acknowledgements](#26-author--acknowledgements)
+- [26. V1.1 Stability & Performance Refactor](#26-v11-stability--performance-refactor)
+>>>>>>> 83d57f6 (course genration fixed)
 
 ---
 
@@ -210,4 +239,93 @@ GitHub: https://github.com/Sanat1427
 
 ## ⭐ Support
 
+<<<<<<< HEAD
 If you found this project useful, consider starring the repository.
+=======
+### Phase 1: Core Features (Completed)
+- [x] AI Course Generator with Gemini 2.5 Flash.
+- [x] Resilient Groq Llama-3.3 fallback client.
+- [x] Split-screen course workspace with progress tracking.
+- [x] Clerk authentication and webhook synchronization.
+
+### Phase 2: Retention & Graphs (Completed)
+- [x] Spaced repetition scheduler using the SM-2 algorithm.
+- [x] Knowledge graph visualizer with concept dependency mapping.
+- [x] Collaborative filtering recommendations engine.
+- [x] Analytics dashboard tracking learning trends.
+
+### Phase 3: Future Enhancements (Planned)
+- [ ] Collaborative study rooms with shared notes.
+- [ ] Exportable PDF study guides for offline learning.
+- [ ] Interactive coding playgrounds next to the video workspace.
+- [ ] Adaptive learning paths that adjust difficulty based on quiz performance.
+
+---
+
+## 23. Contributing
+
+We welcome contributions from the open-source community! To contribute:
+1.  **Fork** the repository.
+2.  Create a feature branch using standard naming conventions:
+    ```powershell
+    git checkout -b feature/your-feature-name
+    ```
+3.  Commit your changes using clear commit messages:
+    ```powershell
+    git commit -m "feat: add user coding playground component"
+    ```
+4.  Push your branch to GitHub:
+    ```powershell
+    git push origin feature/your-feature-name
+    ```
+5.  Open a **Pull Request** and describe your changes.
+
+---
+
+## 24. License
+
+This project is licensed under the **MIT License**. For details, see the [LICENSE](LICENSE) file in the root directory.
+
+---
+
+## 25. Author & Acknowledgements
+
+*   **Coursa Team**: Advanced interactive AI learning platform development.
+
+---
+
+## 26. V1.1 Stability & Performance Refactor
+
+To solve PostgreSQL database connection pool exhaustion (`eMAXCONNSESSION`) and minimize Vercel serverless request timeouts, the application underwent a stability refactor. Several high-latency and secondary learning-science features were temporarily suspended.
+
+### Key Goals achieved:
+1.  **Reduced Database Load**: Avoided relational table scans on spaced repetition schedulers, concept dependency mappings, and analytics trends on every workspace load.
+2.  **Sub-100ms API Latency**: Bypassed synchronous concept readiness and analytics parsing during API request lifecycles.
+3.  **Vercel Optimization**: Disabled background queues that execute intensive AI concept extraction and quiz generation during standard course lessons.
+4.  **No Schema Deletions**: Maintained all existing migrations and relational table schemas, making it fully forward-compatible for subsequent V2 rollouts.
+
+### Suspended Features (Flagged for Future Re-enabling):
+All suspended code blocks are annotated with `// TODO: Re-enable in future release` tags.
+
+*   **Revision & Spaced Repetition Engine**:
+    *   GET/POST endpoints (`/api/revision/complete`, `/api/revision/today`, `/api/revision/upcoming`) have been hard-disabled and immediately return a `403 Forbidden` response.
+    *   Revision widgets and spaced repetition flashcard drawers are hidden from the course workspace UI.
+*   **Learning Insights & Analytics**:
+    *   `/api/analytics` endpoint returns `403 Forbidden`.
+    *   `/api/learning-insights` has been optimized to query only the active course progress records, returning stub category concepts to keep the **"Continue Learning" dashboard card** functional without slow DB joins.
+    *   The frontend `/analytics` page has been replaced with a premium sketch-styled wobbly-border "Feature Temporarily Disabled / Coming Soon in V2" card.
+*   **Personalized Recommendation Engine**:
+    *   API endpoints (`/api/recommendations`, `/api/recommendations/event`, `/api/recommendations/popular`, `/api/recommendations/similar`) return `403 Forbidden`.
+    *   Dynamic homepage recommendation widgets are commented out.
+*   **Knowledge Graph**:
+    *   `/api/knowledge-graph` and `/api/playlist/graph` return `403 Forbidden`.
+    *   The playlist workspace interactive graph canvas is disabled.
+
+### Fully Operational Core Path:
+*   **AI Course Generator**: Full-course and quick-course syllabus layout planning from text prompts, playlists, and hybrid mode queries.
+*   **Split-screen workspace**: Synchronized YouTube video player, timeline bookmarking, and progress indicators.
+*   **Lesson Notebook**: Debounced autosaving notes panel.
+*   **AI Quiz workspace**: Chapter-specific evaluators separate from revision queries.
+*   **Progress Tracking**: Automatic view logs, completions records, and metrics summaries.
+
+>>>>>>> 83d57f6 (course genration fixed)

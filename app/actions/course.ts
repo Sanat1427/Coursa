@@ -6,6 +6,7 @@ import { client } from "@/lib/gemini";
 import { Course_config_prompt, Playlist_course_config_prompt, Hybrid_course_config_prompt } from "@/data/Prompt";
 import { currentUser } from "@clerk/nextjs/server";
 import { and, ilike, eq } from "drizzle-orm";
+import { fetchPlaylistDetails } from "@/lib/youtube";
 
 export async function createCourseAction({
     userInput,
@@ -51,7 +52,7 @@ export async function createCourseAction({
         for (const c of userCourses) {
             const layout = c.courseLayout as any;
             if (layout && layout.playlistId === playlistId && layout.mode === mode) {
-                if (mode === 'playlist' || ilike(c.userInput, userInput)) {
+                if (mode === 'playlist' || (c.userInput || "").toLowerCase().includes(userInput.toLowerCase())) {
                     existingCourse = c;
                     break;
                 }
@@ -91,7 +92,7 @@ export async function createCourseAction({
                 channelName: fetched.channelName,
                 videoCount: fetched.videoCount,
             });
-            const videosToInsert = fetched.videos.map(v => ({
+            const videosToInsert = fetched.videos.map((v: any) => ({
                 playlistId: fetched.playlistId,
                 videoId: v.videoId,
                 title: v.title,
@@ -161,28 +162,24 @@ export async function createCourseAction({
         updatedAt: new Date(),
     });
 
-    // If Mode 2 or 3, pre-populate mapped chapters in the chapters table
-    if (mode === 'playlist' || mode === 'hybrid') {
-        const layoutChapters = JsonResult?.chapters || [];
-        for (const ch of layoutChapters) {
-            if (ch.youtubeVideoId) {
-                const chapterId = `${courseId}-${ch.chapterId}`;
-                await db.insert(chaptersTable).values({
-                    courseId,
-                    chapterId,
-                    chapterTitle: ch.chapterTitle,
-                    youtubeVideoId: ch.youtubeVideoId,
-                    contentMaterials: { articles: [] },
-                    videoContent: {
-                        subContent: ch.subContent || [],
-                        videoLanguage: language || 'English',
-                        isFallback: false,
-                        fallbackMessage: "",
-                        alternativeVideos: []
-                    }
-                });
+    // Pre-populate chapters in the chapters table for all workflows
+    const layoutChapters = JsonResult?.chapters || [];
+    for (const ch of layoutChapters) {
+        const chapterId = `${courseId}-${ch.chapterId}`;
+        await db.insert(chaptersTable).values({
+            courseId,
+            chapterId,
+            chapterTitle: ch.chapterTitle,
+            youtubeVideoId: ch.youtubeVideoId || null,
+            contentMaterials: { articles: [] },
+            videoContent: {
+                subContent: ch.subContent || [],
+                videoLanguage: language || 'English',
+                isFallback: false,
+                fallbackMessage: "",
+                alternativeVideos: []
             }
-        }
+        });
     }
 
     return { courseId, isCached: false };
