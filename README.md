@@ -154,7 +154,6 @@ Inngest --> PostgreSQL
 
 * Next.js API Routes
 * Inngest
-* QStash
 
 ### Database
 
