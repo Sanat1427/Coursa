@@ -15,7 +15,7 @@
 
 ## 📖 Overview
 
-<<<<<<< HEAD
+
 Most online learning platforms suffer from:
 
 * Unstructured YouTube playlists
@@ -236,4 +236,4 @@ If you found this project useful, consider starring the repository.
 ---
 
 
->>>>>>> 83d57f6 (course genration fixed)
+
