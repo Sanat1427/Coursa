@@ -36,33 +36,7 @@ Users can:
 * Create notes
 * Learn in multiple languages
 =======
-- [1. Project Overview](#2-project-overview)
-- [2. Demo](#3-demo)
-- [3. Key Features](#4-key-features)
-- [4. System Architecture](#5-system-architecture)
-- [5. High-Level Design (HLD)](#6-high-level-design-hld)
-- [6. Application Flow](#7-application-flow)
-- [7. Database Design & Relational Schema](#8-database-design--relational-schema)
-- [8. Folder Structure](#9-folder-structure)
-- [9. Tech Stack Selection](#10-tech-stack-selection)
-- [10. API Documentation](#11-api-documentation)
-- [11. AI Architecture & Fallback Strategy](#12-ai-architecture--fallback-strategy)
-- [12. Knowledge Graph Design](#13-knowledge-graph-design)
-- [13. Revision Engine & SM-2 Spaced Repetition](#14-revision-engine--sm-2-spaced-repetition)
-- [14. Security Design](#15-security-design)
-- [15. Performance Optimizations](#16-performance-optimizations)
-- [16. Scalability Architecture](#17-scalability-architecture)
-- [17. Design Decisions & Trade-offs](#18-design-decisions--trade-offs)
-- [18. SDE Interview Talking Points](#19-sde-interview-talking-points)
-- [19. Technical Challenges & Solutions](#20-technical-challenges--solutions)
-- [20. Local Development Setup](#21-local-development-setup)
-- [21. Deployment Architecture](#22-deployment-architecture)
-- [22. Project Roadmap](#23-project-roadmap)
-- [23. Contributing](#24-contributing)
-- [24. License](#25-license)
-- [25. Author & Acknowledgements](#26-author--acknowledgements)
-- [26. V1.1 Stability & Performance Refactor](#26-v11-stability--performance-refactor)
->>>>>>> 83d57f6 (course genration fixed)
+
 
 ---
 
